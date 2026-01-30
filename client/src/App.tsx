@@ -13,6 +13,9 @@ import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import DashboardPage from "@/pages/dashboard";
 import LeadsPage from "@/pages/leads";
+import LeadGenerationPage from "@/pages/lead-generation";
+import LeadManagementPage from "@/pages/lead-management";
+import LeadAutomationPage from "@/pages/lead-automation";
 import SegmentsPage from "@/pages/segments";
 import InsightsPage from "@/pages/insights";
 import SettingsPage from "@/pages/settings";
@@ -86,6 +89,27 @@ function Router() {
         <ProtectedRoute>
           <AuthenticatedLayout>
             <LeadsPage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/lead-generation">
+        <ProtectedRoute>
+          <AuthenticatedLayout>
+            <LeadGenerationPage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/lead-management">
+        <ProtectedRoute>
+          <AuthenticatedLayout>
+            <LeadManagementPage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/lead-automation">
+        <ProtectedRoute>
+          <AuthenticatedLayout>
+            <LeadAutomationPage />
           </AuthenticatedLayout>
         </ProtectedRoute>
       </Route>

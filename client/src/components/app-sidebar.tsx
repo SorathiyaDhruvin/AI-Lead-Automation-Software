@@ -6,6 +6,9 @@ import {
   Settings,
   LogOut,
   Sparkles,
+  Magnet,
+  ClipboardList,
+  Zap,
 } from "lucide-react";
 import {
   Sidebar,
@@ -22,9 +25,17 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/lib/auth";
 
-const menuItems = [
+const mainMenuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Leads", url: "/leads", icon: Users },
+];
+
+const leadMenuItems = [
+  { title: "Lead Generation", url: "/lead-generation", icon: Magnet },
+  { title: "Lead Management", url: "/lead-management", icon: ClipboardList },
+  { title: "Lead Automation", url: "/lead-automation", icon: Zap },
+];
+
+const toolsMenuItems = [
   { title: "Segments", url: "/segments", icon: Target },
   { title: "AI Insights", url: "/insights", icon: Sparkles },
   { title: "Settings", url: "/settings", icon: Settings },
@@ -58,15 +69,59 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>Overview</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {mainMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
                     isActive={location === item.url}
-                    data-testid={`link-${item.title.toLowerCase().replace(" ", "-")}`}
+                    data-testid={`link-${item.title.toLowerCase().replace(/ /g, "-")}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Leads</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {leadMenuItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === item.url}
+                    data-testid={`link-${item.title.toLowerCase().replace(/ /g, "-")}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Tools</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {toolsMenuItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === item.url}
+                    data-testid={`link-${item.title.toLowerCase().replace(/ /g, "-")}`}
                   >
                     <Link href={item.url}>
                       <item.icon className="h-4 w-4" />
