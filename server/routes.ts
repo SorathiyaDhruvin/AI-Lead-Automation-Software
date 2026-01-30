@@ -1,16 +1,365 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { generateToken, hashPassword, comparePassword, authMiddleware, type AuthRequest } from "./auth";
+import { scoreLead, segmentLeads } from "./ai-service";
+import { registerSchema, loginSchema, insertLeadSchema, insertSegmentSchema } from "@shared/schema";
+import { z } from "zod";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
+  
+  // Auth routes
+  app.post("/api/auth/register", async (req: Request, res: Response) => {
+    try {
+      const data = registerSchema.parse(req.body);
+      
+      const existingUser = await storage.getUserByEmail(data.email);
+      if (existingUser) {
+        return res.status(400).json({ message: "Email already registered" });
+      }
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+      const hashedPassword = await hashPassword(data.password);
+      const user = await storage.createUser({
+        email: data.email,
+        password: hashedPassword,
+        name: data.name,
+        role: "user",
+      });
+
+      const token = generateToken(user);
+      const { password: _, ...userWithoutPassword } = user;
+      
+      res.status(201).json({ token, user: userWithoutPassword });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Registration error:", error);
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  app.post("/api/auth/login", async (req: Request, res: Response) => {
+    try {
+      const data = loginSchema.parse(req.body);
+      
+      const user = await storage.getUserByEmail(data.email);
+      if (!user) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      const validPassword = await comparePassword(data.password, user.password);
+      if (!validPassword) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      const token = generateToken(user);
+      const { password: _, ...userWithoutPassword } = user;
+      
+      res.json({ token, user: userWithoutPassword });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Login error:", error);
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  app.get("/api/auth/me", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const { password: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Get user error:", error);
+      res.status(500).json({ message: "Failed to get user" });
+    }
+  });
+
+  app.patch("/api/auth/profile", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const { name, email } = req.body;
+      
+      const user = await storage.updateUser(userId, { name, email });
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const { password: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Update profile error:", error);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  app.patch("/api/auth/password", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const { currentPassword, newPassword } = req.body;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const validPassword = await comparePassword(currentPassword, user.password);
+      if (!validPassword) {
+        return res.status(400).json({ message: "Current password is incorrect" });
+      }
+
+      const hashedPassword = await hashPassword(newPassword);
+      await storage.updateUser(userId, { password: hashedPassword });
+      
+      res.json({ message: "Password updated successfully" });
+    } catch (error) {
+      console.error("Update password error:", error);
+      res.status(500).json({ message: "Failed to update password" });
+    }
+  });
+
+  // Dashboard routes
+  app.get("/api/dashboard/stats", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const stats = await storage.getLeadStats(userId);
+      const segments = await storage.getSegmentsByUser(userId);
+      
+      res.json({
+        totalLeads: stats.total,
+        hotLeads: stats.hot,
+        segments: segments.length,
+        avgScore: stats.avgScore,
+        leadsTrend: 8,
+        scoreTrend: 5,
+      });
+    } catch (error) {
+      console.error("Get stats error:", error);
+      res.status(500).json({ message: "Failed to get stats" });
+    }
+  });
+
+  // Lead routes
+  app.get("/api/leads", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      const leads = await storage.getLeadsByUser(userId, limit);
+      res.json(leads);
+    } catch (error) {
+      console.error("Get leads error:", error);
+      res.status(500).json({ message: "Failed to get leads" });
+    }
+  });
+
+  app.get("/api/leads/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const lead = await storage.getLead(req.params.id);
+      if (!lead) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+      res.json(lead);
+    } catch (error) {
+      console.error("Get lead error:", error);
+      res.status(500).json({ message: "Failed to get lead" });
+    }
+  });
+
+  app.post("/api/leads", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const data = insertLeadSchema.parse({ ...req.body, userId });
+      const lead = await storage.createLead(data);
+      res.status(201).json(lead);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Create lead error:", error);
+      res.status(500).json({ message: "Failed to create lead" });
+    }
+  });
+
+  app.patch("/api/leads/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const lead = await storage.updateLead(req.params.id, req.body);
+      if (!lead) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+      res.json(lead);
+    } catch (error) {
+      console.error("Update lead error:", error);
+      res.status(500).json({ message: "Failed to update lead" });
+    }
+  });
+
+  app.delete("/api/leads/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      await storage.deleteLead(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete lead error:", error);
+      res.status(500).json({ message: "Failed to delete lead" });
+    }
+  });
+
+  // AI Scoring route
+  app.post("/api/leads/:id/score", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const lead = await storage.getLead(req.params.id);
+      if (!lead) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+
+      const result = await scoreLead(lead);
+      
+      const updatedLead = await storage.updateLead(lead.id, {
+        aiScore: result.score,
+        aiPrediction: result.prediction,
+        aiInsights: result.insights,
+      });
+
+      res.json(updatedLead);
+    } catch (error) {
+      console.error("Score lead error:", error);
+      res.status(500).json({ message: "Failed to score lead" });
+    }
+  });
+
+  // Segment routes
+  app.get("/api/segments", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const segments = await storage.getSegmentsByUser(userId);
+      res.json(segments);
+    } catch (error) {
+      console.error("Get segments error:", error);
+      res.status(500).json({ message: "Failed to get segments" });
+    }
+  });
+
+  app.post("/api/segments", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const data = insertSegmentSchema.parse({ ...req.body, userId });
+      const segment = await storage.createSegment(data);
+      res.status(201).json(segment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Create segment error:", error);
+      res.status(500).json({ message: "Failed to create segment" });
+    }
+  });
+
+  app.patch("/api/segments/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const segment = await storage.updateSegment(req.params.id, req.body);
+      if (!segment) {
+        return res.status(404).json({ message: "Segment not found" });
+      }
+      res.json(segment);
+    } catch (error) {
+      console.error("Update segment error:", error);
+      res.status(500).json({ message: "Failed to update segment" });
+    }
+  });
+
+  app.delete("/api/segments/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      await storage.deleteSegment(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete segment error:", error);
+      res.status(500).json({ message: "Failed to delete segment" });
+    }
+  });
+
+  // AI Auto-segmentation route
+  app.post("/api/segments/auto-segment", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const leads = await storage.getLeadsByUser(userId);
+      
+      if (leads.length === 0) {
+        return res.status(400).json({ message: "No leads to segment" });
+      }
+
+      const segmentResults = await segmentLeads(leads);
+      
+      // Create segments and assign leads
+      const createdSegments = new Map<string, string>();
+      
+      for (const [leadId, segmentInfo] of segmentResults) {
+        if (!createdSegments.has(segmentInfo.segmentName)) {
+          const segment = await storage.createSegment({
+            userId,
+            name: segmentInfo.segmentName,
+            description: segmentInfo.description,
+            color: segmentInfo.segmentColor,
+          });
+          createdSegments.set(segmentInfo.segmentName, segment.id);
+        }
+        
+        const segmentId = createdSegments.get(segmentInfo.segmentName);
+        if (segmentId) {
+          await storage.updateLead(leadId, { segmentId });
+        }
+      }
+
+      // Update lead counts
+      for (const segmentId of createdSegments.values()) {
+        await storage.updateSegmentLeadCount(segmentId);
+      }
+
+      const segments = await storage.getSegmentsByUser(userId);
+      res.json(segments);
+    } catch (error) {
+      console.error("Auto-segment error:", error);
+      res.status(500).json({ message: "Failed to auto-segment leads" });
+    }
+  });
+
+  // Insights route
+  app.post("/api/insights/generate", authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const leads = await storage.getLeadsByUser(userId);
+      
+      // Score any unscored leads
+      for (const lead of leads) {
+        if (lead.aiScore === null) {
+          try {
+            const result = await scoreLead(lead);
+            await storage.updateLead(lead.id, {
+              aiScore: result.score,
+              aiPrediction: result.prediction,
+              aiInsights: result.insights,
+            });
+          } catch (error) {
+            console.error(`Failed to score lead ${lead.id}:`, error);
+          }
+        }
+      }
+
+      res.json({ message: "Insights generated successfully" });
+    } catch (error) {
+      console.error("Generate insights error:", error);
+      res.status(500).json({ message: "Failed to generate insights" });
+    }
+  });
 
   return httpServer;
 }
