@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Magnet, Globe, Mail, Users, FileSpreadsheet, Plus, Upload, Link2 } from "lucide-react";
+import { Magnet, Globe, Mail, Users, FileSpreadsheet, Plus, Upload, Link2, MessageSquare, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,11 +35,27 @@ const generationSources = [
     status: "active",
   },
   {
+    id: "sms",
+    title: "SMS Campaign",
+    description: "Generate leads through SMS marketing campaigns and text responses",
+    icon: Smartphone,
+    color: "#00D68F",
+    status: "ready",
+  },
+  {
+    id: "whatsapp",
+    title: "WhatsApp Campaign",
+    description: "Capture leads from WhatsApp Business conversations and broadcasts",
+    icon: MessageSquare,
+    color: "#25D366",
+    status: "ready",
+  },
+  {
     id: "referral",
     title: "Referral Program",
     description: "Track leads from customer referrals and partner networks",
     icon: Users,
-    color: "#00D68F",
+    color: "#FFB946",
     status: "active",
   },
   {
@@ -47,7 +63,7 @@ const generationSources = [
     title: "CSV Import",
     description: "Bulk import leads from spreadsheets and external sources",
     icon: FileSpreadsheet,
-    color: "#FFB946",
+    color: "#FF6B6B",
     status: "ready",
   },
 ];
