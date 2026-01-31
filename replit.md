@@ -29,7 +29,7 @@ Preferred communication style: Simple, everyday language.
 - **Database**: PostgreSQL via Drizzle ORM
 - **Schema Location**: `shared/schema.ts` contains all table definitions
 - **Migrations**: Drizzle Kit for schema migrations (`npm run db:push`)
-- **Tables**: users, leads, segments, activities, conversations, messages
+- **Tables**: users, leads, segments, activities, conversations, messages, leadRequests
 
 ### Authentication
 - **Method**: JWT (JSON Web Tokens) with bcrypt password hashing
@@ -100,7 +100,16 @@ Preferred communication style: Simple, everyday language.
 ### Demo Account
 - Email: demo@leadflow.ai
 - Password: demo1234
+- Role: admin (can access Admin Panel)
 - Includes 7 sample leads across 3 segments (Hot Leads, Enterprise Prospects, Nurture Required)
+
+### Admin Panel & Lead Request System (January 2026)
+- **Lead Requests**: Users can submit requests for new leads via /lead-requests page
+- **Admin Panel**: Admin users can manage lead requests at /admin
+- **Role-Based Access Control**: JWT tokens include role field, adminMiddleware protects /api/admin/* routes
+- **Request Statuses**: pending → in_review → approved/rejected
+- **AdminProtectedRoute**: Component that redirects non-admin users to dashboard
+- **Database Table**: leadRequests stores user submissions with priority, status, and admin notes
 
 ### Design System
 - Primary: #0066FF (blue)
