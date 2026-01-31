@@ -58,6 +58,26 @@ export const activities = pgTable("activities", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// Lead requests table (users submit requests, admins manage them)
+export const leadRequests = pgTable("lead_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  companyName: text("company_name").notNull(),
+  contactName: text("contact_name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone"),
+  industry: text("industry"),
+  budget: text("budget"),
+  description: text("description").notNull(),
+  priority: text("priority").notNull().default("medium"),
+  status: text("status").notNull().default("pending"),
+  adminNotes: text("admin_notes"),
+  reviewedBy: varchar("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // Insert schemas for legacy users (email/password auth)
 export const insertUserLegacySchema = createInsertSchema(usersLegacy).pick({
   email: true,
@@ -86,6 +106,21 @@ export const insertActivitySchema = createInsertSchema(activities).omit({
   createdAt: true,
 });
 
+export const insertLeadRequestSchema = createInsertSchema(leadRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  status: true,
+  adminNotes: true,
+  reviewedBy: true,
+  reviewedAt: true,
+});
+
+export const updateLeadRequestSchema = z.object({
+  status: z.enum(["pending", "approved", "rejected", "in_review"]),
+  adminNotes: z.string().optional(),
+});
+
 // Extended schemas for validation
 export const registerSchema = insertUserLegacySchema.extend({
   email: z.string().email("Invalid email address"),
@@ -107,3 +142,6 @@ export type InsertSegment = z.infer<typeof insertSegmentSchema>;
 export type Segment = typeof segments.$inferSelect;
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type Activity = typeof activities.$inferSelect;
+export type InsertLeadRequest = z.infer<typeof insertLeadRequestSchema>;
+export type LeadRequest = typeof leadRequests.$inferSelect;
+export type UpdateLeadRequest = z.infer<typeof updateLeadRequestSchema>;
