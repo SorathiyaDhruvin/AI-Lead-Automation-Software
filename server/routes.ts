@@ -5,18 +5,17 @@ import { generateToken, hashPassword, comparePassword, authMiddleware } from "./
 import { scoreLead, segmentLeads } from "./ai-service";
 import { registerSchema, loginSchema, insertLeadSchema, insertSegmentSchema } from "@shared/schema";
 import { z } from "zod";
-import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
+import { setupGoogleOAuth } from "./google-oauth";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
-  // Setup Replit Auth (for Google/social login)
-  await setupAuth(app);
-  registerAuthRoutes(app);
+  // Setup Google OAuth for native Google Sign-In
+  setupGoogleOAuth(app);
   
-  // Legacy Auth routes (email/password)
+  // Auth routes (email/password)
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
       const data = registerSchema.parse(req.body);

@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
+import AuthCallbackPage from "@/pages/auth-callback";
 import DashboardPage from "@/pages/dashboard";
 import LeadsPage from "@/pages/leads";
 import LeadGenerationPage from "@/pages/lead-generation";
@@ -78,6 +79,7 @@ function Router() {
       </Route>
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
+      <Route path="/auth-callback" component={AuthCallbackPage} />
       <Route path="/dashboard">
         <ProtectedRoute>
           <AuthenticatedLayout>
