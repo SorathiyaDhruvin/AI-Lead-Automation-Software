@@ -88,7 +88,7 @@ export function setupGoogleOAuth(app: Express) {
           return res.redirect("/login?error=no_user");
         }
 
-        const token = generateToken(user.id);
+        const token = generateToken(user);
         
         res.redirect(`/auth-callback?token=${token}`);
       } catch (error) {
