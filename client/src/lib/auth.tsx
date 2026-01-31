@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
-import type { User } from "@shared/schema";
+import type { UserLegacy } from "@shared/schema";
 
 interface AuthContextType {
-  user: User | null;
+  user: UserLegacy | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
@@ -14,7 +14,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserLegacy | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 

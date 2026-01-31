@@ -9,6 +9,8 @@ import {
   Magnet,
   ClipboardList,
   Zap,
+  FileText,
+  Shield,
 } from "lucide-react";
 import {
   Sidebar,
@@ -27,6 +29,7 @@ import { useAuth } from "@/lib/auth";
 
 const mainMenuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Lead Requests", url: "/lead-requests", icon: FileText },
 ];
 
 const leadMenuItems = [
@@ -39,6 +42,10 @@ const toolsMenuItems = [
   { title: "Segments", url: "/segments", icon: Target },
   { title: "AI Insights", url: "/insights", icon: Sparkles },
   { title: "Settings", url: "/settings", icon: Settings },
+];
+
+const adminMenuItems = [
+  { title: "Admin Panel", url: "/admin", icon: Shield },
 ];
 
 export function AppSidebar() {
@@ -133,6 +140,30 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {user?.role === "admin" && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminMenuItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location === item.url}
+                      data-testid={`link-${item.title.toLowerCase().replace(/ /g, "-")}`}
+                    >
+                      <Link href={item.url}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="p-4">
         <div className="flex items-center gap-3 p-2 rounded-md bg-sidebar-accent/50">

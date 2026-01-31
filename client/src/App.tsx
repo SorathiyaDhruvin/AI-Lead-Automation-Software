@@ -20,6 +20,8 @@ import LeadAutomationPage from "@/pages/lead-automation";
 import SegmentsPage from "@/pages/segments";
 import InsightsPage from "@/pages/insights";
 import SettingsPage from "@/pages/settings";
+import LeadRequestsPage from "@/pages/lead-requests";
+import AdminPage from "@/pages/admin";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -43,6 +45,36 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
+    return null;
+  }
+
+  return <>{children}</>;
+}
+
+function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      setLocation("/login");
+    } else if (!isLoading && user && user.role !== "admin") {
+      setLocation("/dashboard");
+    }
+  }, [user, isLoading, setLocation]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || user.role !== "admin") {
     return null;
   }
 
@@ -135,6 +167,20 @@ function Router() {
             <SettingsPage />
           </AuthenticatedLayout>
         </ProtectedRoute>
+      </Route>
+      <Route path="/lead-requests">
+        <ProtectedRoute>
+          <AuthenticatedLayout>
+            <LeadRequestsPage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin">
+        <AdminProtectedRoute>
+          <AuthenticatedLayout>
+            <AdminPage />
+          </AuthenticatedLayout>
+        </AdminProtectedRoute>
       </Route>
       <Route component={NotFound} />
     </Switch>
