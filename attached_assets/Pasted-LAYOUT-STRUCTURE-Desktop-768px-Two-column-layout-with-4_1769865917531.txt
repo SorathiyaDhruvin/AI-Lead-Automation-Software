@@ -1,0 +1,128 @@
+LAYOUT STRUCTURE:
+Desktop (>768px):
+
+Two-column layout with 40% left column and 60% right column
+Left column: Brand hero section with gradient background
+Right column: Login form centered vertically and horizontally
+
+Mobile (≤768px):
+
+Single column layout, stacked vertically
+Condensed branding at top
+Full-width login form below
+
+LEFT COLUMN (Desktop only):
+
+Full-height gradient background
+White text content, vertically centered
+Main heading: "AI Lead Automation" (bold, 2.5rem)
+Subheading: "Automate your lead generation and boost conversions with intelligent AI-powered workflows" (1.125rem, slightly transparent)
+Three feature bullet points with checkmark icons:
+
+"Smart lead scoring and qualification"
+"Automated email sequences"
+"Real-time analytics dashboard"
+
+
+Abstract geometric decoration (circles or dots pattern, subtle)
+
+RIGHT COLUMN / MOBILE FORM:
+
+White card container with shadow and rounded corners (16px radius)
+Max width: 440px
+Padding: 48px on desktop, 32px on mobile
+Content:
+
+
+Header:
+
+"Get Started" (bold, 1.875rem)
+"Sign in to access your dashboard" (secondary color, 1rem)
+Margin bottom: 32px
+
+
+Email Input Field:
+
+Label: "Email Address" (medium weight, 0.875rem)
+Input with envelope icon INSIDE left (20px size)
+Icon padding: 12px from left edge
+Text padding: 44px from left (to accommodate icon)
+Placeholder: "you@company.com"
+Border with rounded corners (8px)
+Focus state: Primary color border with shadow
+Height: 48px
+Margin bottom: 20px
+
+
+Password Input Field:
+
+Label: "Password" (medium weight, 0.875rem)
+Input with lock icon INSIDE left (20px size)
+Eye icon INSIDE right (clickable, toggles password visibility)
+When clicked, eye icon switches between eye-open and eye-slash
+Toggle password type between "password" and "text"
+Eye icon changes color on hover
+Icon padding: Left icon 12px from left, Right icon 12px from right
+Text padding: 44px from left, 44px from right
+Placeholder: "Enter your password"
+Same styling as email input
+Margin bottom: 24px
+
+
+Sign In Button:
+
+Full width
+Primary background color
+Text: "Sign In" (white, bold, 1rem)
+Height: 48px, rounded 8px
+Hover: Darker shade with shadow
+Active: Even darker shade
+Cursor pointer
+Smooth transition 200ms
+Margin bottom: 24px
+
+
+Footer Links:
+
+Center aligned
+"Don't have an account?" (secondary color, 0.875rem) + "Create account" (primary color, bold, clickable)
+"Create account" hover: Darker shade, underline
+Margin top: 16px
+"Forgot password?" link below (secondary color, 0.875rem)
+"Forgot password?" hover: Primary color, underline
+
+
+
+TECHNICAL REQUIREMENTS:
+
+Use React functional components with hooks
+useState for password visibility toggle (initially false/hidden)
+Responsive design using Tailwind CSS or custom CSS with media queries
+Icons from lucide-react library (Mail, Lock, Eye, EyeOff, Check icons)
+Smooth transitions (200ms) on all hover and focus states
+Mobile-first approach
+Input fields should have proper type attributes (type="email", type="password"/"text")
+Accessible labels and ARIA attributes
+Form should have onSubmit handler (e.preventDefault(), console.log for now)
+
+ICONS SPECIFICATIONS:
+
+Email field: <Mail /> icon, 20px, absolute positioned inside input left
+Password field: <Lock /> icon, 20px, absolute positioned inside input left
+Password field: <Eye /> or <EyeOff /> icon, 20px, absolute positioned inside input right, cursor pointer, changes color on hover
+Eye icon toggles between Eye and EyeOff on click
+Left column checkmarks: <Check /> icons, 18px, inside circle background
+
+RESPONSIVE BREAKPOINTS:
+
+Mobile: 0-767px (single column, hide left column completely)
+Desktop: 768px+ (two columns side by side)
+
+ADDITIONAL DESIGN POLISH:
+
+All inputs have smooth focus transitions
+Button has subtle scale effect on click (transform: scale(0.98))
+Card has subtle shadow
+Professional typography using Inter or similar sans-serif font
+Proper spacing and breathing room between elements
+Password visibility toggle should work smoothly
