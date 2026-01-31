@@ -1,9 +1,9 @@
 import type { Express, Request, Response, RequestHandler } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { generateToken, hashPassword, comparePassword, authMiddleware } from "./auth";
+import { generateToken, hashPassword, comparePassword, authMiddleware, adminMiddleware } from "./auth";
 import { scoreLead, segmentLeads } from "./ai-service";
-import { registerSchema, loginSchema, insertLeadSchema, insertSegmentSchema } from "@shared/schema";
+import { registerSchema, loginSchema, insertLeadSchema, insertSegmentSchema, insertLeadRequestSchema, updateLeadRequestSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupGoogleOAuth } from "./google-oauth";
 
@@ -362,6 +362,108 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Generate insights error:", error);
       res.status(500).json({ message: "Failed to generate insights" });
+    }
+  });
+
+  // Lead Request routes (user-facing)
+  app.get("/api/lead-requests", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const requests = await storage.getLeadRequestsByUser(userId);
+      res.json(requests);
+    } catch (error) {
+      console.error("Get lead requests error:", error);
+      res.status(500).json({ message: "Failed to get lead requests" });
+    }
+  });
+
+  app.post("/api/lead-requests", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const data = insertLeadRequestSchema.parse({ ...req.body, userId });
+      const request = await storage.createLeadRequest(data);
+      res.status(201).json(request);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Create lead request error:", error);
+      res.status(500).json({ message: "Failed to create lead request" });
+    }
+  });
+
+  app.get("/api/lead-requests/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const request = await storage.getLeadRequest(req.params.id);
+      
+      if (!request) {
+        return res.status(404).json({ message: "Lead request not found" });
+      }
+      
+      // Users can only view their own requests
+      if (request.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      res.json(request);
+    } catch (error) {
+      console.error("Get lead request error:", error);
+      res.status(500).json({ message: "Failed to get lead request" });
+    }
+  });
+
+  // Admin routes (protected by adminMiddleware)
+  app.get("/api/admin/lead-requests", adminMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const requests = await storage.getAllLeadRequests();
+      res.json(requests);
+    } catch (error) {
+      console.error("Admin get lead requests error:", error);
+      res.status(500).json({ message: "Failed to get lead requests" });
+    }
+  });
+
+  app.patch("/api/admin/lead-requests/:id", adminMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const adminId = (req as any).userId;
+      const data = updateLeadRequestSchema.parse(req.body);
+      
+      const request = await storage.getLeadRequest(req.params.id);
+      if (!request) {
+        return res.status(404).json({ message: "Lead request not found" });
+      }
+
+      const updated = await storage.updateLeadRequest(req.params.id, {
+        ...data,
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Admin update lead request error:", error);
+      res.status(500).json({ message: "Failed to update lead request" });
+    }
+  });
+
+  app.get("/api/admin/stats", adminMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const requests = await storage.getAllLeadRequests();
+      const stats = {
+        total: requests.length,
+        pending: requests.filter(r => r.status === "pending").length,
+        approved: requests.filter(r => r.status === "approved").length,
+        rejected: requests.filter(r => r.status === "rejected").length,
+        inReview: requests.filter(r => r.status === "in_review").length,
+      };
+      res.json(stats);
+    } catch (error) {
+      console.error("Admin stats error:", error);
+      res.status(500).json({ message: "Failed to get admin stats" });
     }
   });
 

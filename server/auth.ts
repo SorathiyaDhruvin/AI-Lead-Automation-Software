@@ -11,7 +11,7 @@ export interface AuthRequest extends Request {
 }
 
 export function generateToken(user: UserLegacy): string {
-  return jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
+  return jwt.sign({ userId: user.id, email: user.email, role: user.role }, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN,
   });
 }
@@ -48,5 +48,31 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
 
   // Attach userId to request for later use
   (req as any).userId = decoded.userId;
+  next();
+}
+
+export function adminMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+
+  const token = authHeader.substring(7);
+  const decoded = verifyToken(token);
+
+  if (!decoded) {
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+
+  // Attach userId and role to request
+  (req as any).userId = decoded.userId;
+  (req as any).userRole = (decoded as any).role;
+  
+  // Check if user has admin role
+  if ((decoded as any).role !== "admin") {
+    return res.status(403).json({ message: "Admin access required" });
+  }
+  
   next();
 }

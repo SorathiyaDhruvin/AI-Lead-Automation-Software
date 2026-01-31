@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { usersLegacy, leads, segments, activities } from "@shared/schema";
+import { usersLegacy, leads, segments, activities, leadRequests } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
-import type { InsertUserLegacy, UserLegacy, InsertLead, Lead, InsertSegment, Segment, InsertActivity, Activity } from "@shared/schema";
+import type { InsertUserLegacy, UserLegacy, InsertLead, Lead, InsertSegment, Segment, InsertActivity, Activity, InsertLeadRequest, LeadRequest } from "@shared/schema";
 
 export interface IStorage {
   // User methods (for legacy email/password auth)
@@ -29,6 +29,13 @@ export interface IStorage {
   // Activity methods
   getActivitiesByLead(leadId: string): Promise<Activity[]>;
   createActivity(activity: InsertActivity): Promise<Activity>;
+
+  // Lead request methods
+  getLeadRequest(id: string): Promise<LeadRequest | undefined>;
+  getLeadRequestsByUser(userId: string): Promise<LeadRequest[]>;
+  getAllLeadRequests(): Promise<LeadRequest[]>;
+  createLeadRequest(request: InsertLeadRequest): Promise<LeadRequest>;
+  updateLeadRequest(id: string, updates: Partial<LeadRequest>): Promise<LeadRequest | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -142,6 +149,41 @@ export class DatabaseStorage implements IStorage {
   async createActivity(insertActivity: InsertActivity): Promise<Activity> {
     const [activity] = await db.insert(activities).values(insertActivity).returning();
     return activity;
+  }
+
+  // Lead request methods
+  async getLeadRequest(id: string): Promise<LeadRequest | undefined> {
+    const [request] = await db.select().from(leadRequests).where(eq(leadRequests.id, id));
+    return request;
+  }
+
+  async getLeadRequestsByUser(userId: string): Promise<LeadRequest[]> {
+    return db
+      .select()
+      .from(leadRequests)
+      .where(eq(leadRequests.userId, userId))
+      .orderBy(desc(leadRequests.createdAt));
+  }
+
+  async getAllLeadRequests(): Promise<LeadRequest[]> {
+    return db
+      .select()
+      .from(leadRequests)
+      .orderBy(desc(leadRequests.createdAt));
+  }
+
+  async createLeadRequest(insertRequest: InsertLeadRequest): Promise<LeadRequest> {
+    const [request] = await db.insert(leadRequests).values(insertRequest).returning();
+    return request;
+  }
+
+  async updateLeadRequest(id: string, updates: Partial<LeadRequest>): Promise<LeadRequest | undefined> {
+    const [request] = await db
+      .update(leadRequests)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(leadRequests.id, id))
+      .returning();
+    return request;
   }
 }
 
