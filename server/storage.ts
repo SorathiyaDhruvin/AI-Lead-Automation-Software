@@ -1,15 +1,14 @@
 import { db } from "./db";
-import { users, leads, segments, activities } from "@shared/schema";
-import { eq, desc, and, count, avg, sql } from "drizzle-orm";
-import type { InsertUser, User, InsertLead, Lead, InsertSegment, Segment, InsertActivity, Activity } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { usersLegacy, leads, segments, activities } from "@shared/schema";
+import { eq, desc } from "drizzle-orm";
+import type { InsertUserLegacy, UserLegacy, InsertLead, Lead, InsertSegment, Segment, InsertActivity, Activity } from "@shared/schema";
 
 export interface IStorage {
-  // User methods
-  getUser(id: string): Promise<User | undefined>;
-  getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
+  // User methods (for legacy email/password auth)
+  getUser(id: string): Promise<UserLegacy | undefined>;
+  getUserByEmail(email: string): Promise<UserLegacy | undefined>;
+  createUser(user: InsertUserLegacy): Promise<UserLegacy>;
+  updateUser(id: string, updates: Partial<UserLegacy>): Promise<UserLegacy | undefined>;
 
   // Lead methods
   getLead(id: string): Promise<Lead | undefined>;
@@ -33,24 +32,24 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  // User methods
-  async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
+  // User methods (legacy email/password auth)
+  async getUser(id: string): Promise<UserLegacy | undefined> {
+    const [user] = await db.select().from(usersLegacy).where(eq(usersLegacy.id, id));
     return user;
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+  async getUserByEmail(email: string): Promise<UserLegacy | undefined> {
+    const [user] = await db.select().from(usersLegacy).where(eq(usersLegacy.email, email));
     return user;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
+  async createUser(insertUser: InsertUserLegacy): Promise<UserLegacy> {
+    const [user] = await db.insert(usersLegacy).values(insertUser).returning();
     return user;
   }
 
-  async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
-    const [user] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
+  async updateUser(id: string, updates: Partial<UserLegacy>): Promise<UserLegacy | undefined> {
+    const [user] = await db.update(usersLegacy).set(updates).where(eq(usersLegacy.id, id)).returning();
     return user;
   }
 
@@ -109,7 +108,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSegmentsByUser(userId: string): Promise<Segment[]> {
-    return db.select().from(segments).where(eq(segments.userId, userId)).orderBy(desc(segments.createdAt));
+    return db.select().from(segments).where(eq(segments.userId, userId));
   }
 
   async createSegment(insertSegment: InsertSegment): Promise<Segment> {
@@ -127,16 +126,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSegmentLeadCount(segmentId: string): Promise<void> {
-    const leadCount = await db
-      .select({ count: count() })
-      .from(leads)
-      .where(eq(leads.segmentId, segmentId));
-    await db.update(segments).set({ leadCount: leadCount[0]?.count || 0 }).where(eq(segments.id, segmentId));
+    const segmentLeads = await db.select().from(leads).where(eq(leads.segmentId, segmentId));
+    await db.update(segments).set({ leadCount: segmentLeads.length }).where(eq(segments.id, segmentId));
   }
 
   // Activity methods
   async getActivitiesByLead(leadId: string): Promise<Activity[]> {
-    return db.select().from(activities).where(eq(activities.leadId, leadId)).orderBy(desc(activities.createdAt));
+    return db
+      .select()
+      .from(activities)
+      .where(eq(activities.leadId, leadId))
+      .orderBy(desc(activities.createdAt));
   }
 
   async createActivity(insertActivity: InsertActivity): Promise<Activity> {

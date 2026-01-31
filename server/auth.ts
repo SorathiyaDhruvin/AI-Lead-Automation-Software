@@ -1,16 +1,16 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import type { Request, Response, NextFunction } from "express";
-import type { User } from "@shared/schema";
+import type { UserLegacy } from "@shared/schema";
 
 const JWT_SECRET = process.env.SESSION_SECRET || "leadflow-secret-key";
 const JWT_EXPIRES_IN = "7d";
 
 export interface AuthRequest extends Request {
-  user?: User;
+  user?: UserLegacy;
 }
 
-export function generateToken(user: User): string {
+export function generateToken(user: UserLegacy): string {
   return jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN,
   });

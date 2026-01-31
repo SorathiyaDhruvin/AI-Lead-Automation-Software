@@ -1,17 +1,22 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, RequestHandler } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { generateToken, hashPassword, comparePassword, authMiddleware, type AuthRequest } from "./auth";
+import { generateToken, hashPassword, comparePassword, authMiddleware } from "./auth";
 import { scoreLead, segmentLeads } from "./ai-service";
 import { registerSchema, loginSchema, insertLeadSchema, insertSegmentSchema } from "@shared/schema";
 import { z } from "zod";
+import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
-  // Auth routes
+  // Setup Replit Auth (for Google/social login)
+  await setupAuth(app);
+  registerAuthRoutes(app);
+  
+  // Legacy Auth routes (email/password)
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
       const data = registerSchema.parse(req.body);
@@ -69,7 +74,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/auth/me", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.get("/api/auth/me", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
       const user = await storage.getUser(userId);
@@ -86,7 +91,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/auth/profile", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.patch("/api/auth/profile", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
       const { name, email } = req.body;
@@ -104,7 +109,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/auth/password", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.patch("/api/auth/password", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
       const { currentPassword, newPassword } = req.body;
@@ -130,7 +135,7 @@ export async function registerRoutes(
   });
 
   // Dashboard routes
-  app.get("/api/dashboard/stats", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.get("/api/dashboard/stats", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
       const stats = await storage.getLeadStats(userId);
@@ -151,7 +156,7 @@ export async function registerRoutes(
   });
 
   // Lead routes
-  app.get("/api/leads", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.get("/api/leads", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
@@ -163,7 +168,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/leads/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.get("/api/leads/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const lead = await storage.getLead(req.params.id);
       if (!lead) {
@@ -176,7 +181,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/leads", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.post("/api/leads", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
       const data = insertLeadSchema.parse({ ...req.body, userId });
@@ -191,7 +196,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/leads/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.patch("/api/leads/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const lead = await storage.updateLead(req.params.id, req.body);
       if (!lead) {
@@ -204,7 +209,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/leads/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.delete("/api/leads/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       await storage.deleteLead(req.params.id);
       res.status(204).send();
@@ -215,7 +220,7 @@ export async function registerRoutes(
   });
 
   // AI Scoring route
-  app.post("/api/leads/:id/score", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.post("/api/leads/:id/score", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const lead = await storage.getLead(req.params.id);
       if (!lead) {
@@ -238,7 +243,7 @@ export async function registerRoutes(
   });
 
   // Segment routes
-  app.get("/api/segments", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.get("/api/segments", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
       const segments = await storage.getSegmentsByUser(userId);
@@ -249,7 +254,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/segments", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.post("/api/segments", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
       const data = insertSegmentSchema.parse({ ...req.body, userId });
@@ -264,7 +269,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/segments/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.patch("/api/segments/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const segment = await storage.updateSegment(req.params.id, req.body);
       if (!segment) {
@@ -277,7 +282,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/segments/:id", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.delete("/api/segments/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       await storage.deleteSegment(req.params.id);
       res.status(204).send();
@@ -288,7 +293,7 @@ export async function registerRoutes(
   });
 
   // AI Auto-segmentation route
-  app.post("/api/segments/auto-segment", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.post("/api/segments/auto-segment", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
       const leads = await storage.getLeadsByUser(userId);
@@ -333,7 +338,7 @@ export async function registerRoutes(
   });
 
   // Insights route
-  app.post("/api/insights/generate", authMiddleware, async (req: AuthRequest, res: Response) => {
+  app.post("/api/insights/generate", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
       const leads = await storage.getLeadsByUser(userId);
