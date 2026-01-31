@@ -133,7 +133,7 @@ export default function LoginPage() {
                           <Input
                             type="email"
                             placeholder="you@company.com"
-                            className="h-12 pl-11 rounded-lg transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                            className="pl-11 rounded-lg"
                             data-testid="input-email"
                             {...field}
                           />
@@ -156,22 +156,25 @@ export default function LoginPage() {
                           <Input
                             type={showPassword ? "text" : "password"}
                             placeholder="Enter your password"
-                            className="h-12 pl-11 pr-11 rounded-lg transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                            className="pl-11 pr-11 rounded-lg"
                             data-testid="input-password"
                             {...field}
                           />
-                          <button
+                          <Button
                             type="button"
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors duration-200"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-1 top-1/2 -translate-y-1/2"
                             onClick={() => setShowPassword(!showPassword)}
                             aria-label={showPassword ? "Hide password" : "Show password"}
+                            data-testid="button-toggle-password"
                           >
                             {showPassword ? (
                               <EyeOff className="h-5 w-5" />
                             ) : (
                               <Eye className="h-5 w-5" />
                             )}
-                          </button>
+                          </Button>
                         </div>
                       </FormControl>
                       <FormMessage />
@@ -181,7 +184,8 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
-                  className="w-full h-12 rounded-lg font-semibold text-base transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
+                  size="lg"
+                  className="w-full rounded-lg font-semibold"
                   disabled={isLoading}
                   data-testid="button-submit"
                 >
@@ -195,7 +199,7 @@ export default function LoginPage() {
                 Don't have an account?{" "}
                 <Link
                   href="/register"
-                  className="text-primary font-semibold hover:text-primary/80 hover:underline transition-all duration-200"
+                  className="text-primary font-semibold underline-offset-4 hover:underline"
                   data-testid="link-register"
                 >
                   Create account
@@ -203,7 +207,8 @@ export default function LoginPage() {
               </p>
               <a
                 href="#"
-                className="block text-sm text-muted-foreground hover:text-primary hover:underline transition-all duration-200"
+                className="block text-sm text-muted-foreground underline-offset-4 hover:underline"
+                data-testid="link-forgot-password"
               >
                 Forgot password?
               </a>
