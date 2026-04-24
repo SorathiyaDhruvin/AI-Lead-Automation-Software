@@ -378,7 +378,13 @@ export default function LeadManagementPage() {
     const qs = params.toString();
     const url = `/api/leads/export${qs ? `?${qs}` : ""}`;
     fetch(url, { headers: getAuthHeaders() })
-      .then((r) => r.blob())
+      .then(async (r) => {
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.message || "Export failed");
+        }
+        return r.blob();
+      })
       .then((blob) => {
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
@@ -386,7 +392,7 @@ export default function LeadManagementPage() {
         a.click();
         URL.revokeObjectURL(a.href);
       })
-      .catch(() => toast({ title: "Export failed", variant: "destructive" }));
+      .catch((err: Error) => toast({ title: "Export failed", description: err.message, variant: "destructive" }));
   };
 
   return (
