@@ -93,8 +93,10 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
   createdAt: true,
   updatedAt: true,
   aiScore: true,
+  aiCategory: true,
   aiPrediction: true,
   aiInsights: true,
+  aiRecommendedAction: true,
 });
 
 export const insertSegmentSchema = createInsertSchema(segments).omit({

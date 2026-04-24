@@ -147,13 +147,20 @@ export async function registerRoutes(
         ? Math.round(((stats.statusCounts.won || 0) / stats.total) * 100)
         : 0;
 
+      // Normalize status counts — always include all statuses with zero default
+      const allStatuses = ["new", "contacted", "qualified", "proposal", "negotiation", "won", "lost"];
+      const normalizedStatusCounts: Record<string, number> = {};
+      for (const s of allStatuses) {
+        normalizedStatusCounts[s] = stats.statusCounts[s] || 0;
+      }
+
       res.json({
         totalLeads: stats.total,
         hotLeads: stats.hot,
         segments: segments.length,
         avgScore: stats.avgScore,
         conversionRate,
-        statusCounts: stats.statusCounts,
+        statusCounts: normalizedStatusCounts,
         dailyTrend,
         leadsTrend: 0,
         scoreTrend: 0,
