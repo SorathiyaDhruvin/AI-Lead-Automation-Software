@@ -313,15 +313,19 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async deleteAutomationRule(id: string): Promise<void> {
-    await db.delete(automationRules).where(eq(automationRules.id, id));
+  async deleteAutomationRule(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(automationRules)
+      .where(and(eq(automationRules.id, id), eq(automationRules.userId, userId)))
+      .returning({ id: automationRules.id });
+    return result.length > 0;
   }
 
-  async toggleAutomationRule(id: string, isActive: boolean): Promise<AutomationRule | undefined> {
+  async toggleAutomationRule(id: string, isActive: boolean, userId: string): Promise<AutomationRule | undefined> {
     const [updated] = await db
       .update(automationRules)
       .set({ isActive })
-      .where(eq(automationRules.id, id))
+      .where(and(eq(automationRules.id, id), eq(automationRules.userId, userId)))
       .returning();
     return updated;
   }

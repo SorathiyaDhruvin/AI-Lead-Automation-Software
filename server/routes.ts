@@ -426,7 +426,9 @@ export async function registerRoutes(
 
   app.delete("/api/automation/rules/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
-      await storage.deleteAutomationRule(req.params.id);
+      const userId = (req as any).userId;
+      const deleted = await storage.deleteAutomationRule(req.params.id, userId);
+      if (!deleted) return res.status(404).json({ message: "Rule not found" });
       res.status(204).send();
     } catch (error) {
       console.error("Delete automation rule error:", error);
@@ -436,8 +438,9 @@ export async function registerRoutes(
 
   app.patch("/api/automation/rules/:id/toggle", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
+      const userId = (req as any).userId;
       const { isActive } = req.body;
-      const rule = await storage.toggleAutomationRule(req.params.id, Boolean(isActive));
+      const rule = await storage.toggleAutomationRule(req.params.id, Boolean(isActive), userId);
       if (!rule) return res.status(404).json({ message: "Rule not found" });
       res.json(rule);
     } catch (error) {

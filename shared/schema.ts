@@ -150,6 +150,12 @@ export const insertLeadRequestSchema = createInsertSchema(leadRequests).omit({
 export const insertAutomationRuleSchema = createInsertSchema(automationRules).omit({
   id: true,
   createdAt: true,
+}).extend({
+  name: z.string().min(1, "Name is required").max(200),
+  triggerType: z.enum(["score_threshold", "no_contact_hours"], { message: "Invalid trigger type" }),
+  triggerValue: z.number().int().min(0).max(9999),
+  actionType: z.enum(["set_priority", "send_email"], { message: "Invalid action type" }),
+  actionValue: z.string().min(1, "Action value is required").max(500),
 });
 
 export const updateLeadRequestSchema = z.object({
