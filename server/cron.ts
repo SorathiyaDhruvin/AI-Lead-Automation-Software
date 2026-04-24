@@ -71,6 +71,12 @@ async function evaluateRules(): Promise<void> {
             type: "status_changed",
             description: `[rule:${rule.id}] Automation rule "${rule.name}" set status to "${rule.actionValue}"`,
           });
+          await storage.createNotification({
+            userId: rule.userId,
+            type: "automation_triggered",
+            message: `Rule "${rule.name}" set ${lead.name}'s status to "${rule.actionValue}"`,
+            isRead: false,
+          });
         } else if (rule.actionType === "send_email") {
           await sendEmail(
             lead.email,
@@ -82,6 +88,12 @@ async function evaluateRules(): Promise<void> {
             userId: rule.userId,
             type: "email",
             description: `[rule:${rule.id}] Automation rule "${rule.name}" sent email: ${rule.actionValue}`,
+          });
+          await storage.createNotification({
+            userId: rule.userId,
+            type: "automation_triggered",
+            message: `Rule "${rule.name}" sent a follow-up email to ${lead.name}`,
+            isRead: false,
           });
         }
       }

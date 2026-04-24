@@ -134,6 +134,8 @@ function NotificationBell() {
   const typeIcon = (type: string) => {
     if (type === "lead_created") return "🟢";
     if (type === "status_changed") return "🔄";
+    if (type === "automation_triggered") return "⚡";
+    if (type === "scored") return "⭐";
     return "🔔";
   };
 
