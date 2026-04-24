@@ -863,7 +863,7 @@ export default function LeadAutomationPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="send_email">Send Email</SelectItem>
-                    <SelectItem value="set_priority">Set Status</SelectItem>
+                    <SelectItem value="set_status">Set Status</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -871,7 +871,7 @@ export default function LeadAutomationPage() {
                 <label className="text-sm font-medium">
                   {ruleActionType === "send_email" ? "Email Subject" : "New Status"}
                 </label>
-                {ruleActionType === "set_priority" ? (
+                {ruleActionType === "set_status" ? (
                   <Select value={ruleActionValue} onValueChange={setRuleActionValue}>
                     <SelectTrigger data-testid="select-action-value-status">
                       <SelectValue placeholder="Select status" />

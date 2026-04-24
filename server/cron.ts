@@ -16,7 +16,7 @@ export function startCronJobs(): void {
   console.log("[cron] Automation cron jobs started");
 }
 
-const SEND_EMAIL_COOLDOWN_HOURS = 24;
+const DEFAULT_COOLDOWN_HOURS = 24;
 
 async function hasRecentRuleActivity(leadId: string, ruleId: string, cooldownHours: number): Promise<boolean> {
   const activities = await storage.getActivitiesByLead(leadId);
@@ -53,11 +53,17 @@ async function evaluateRules(): Promise<void> {
 
         if (!conditionMet) continue;
 
-        // Deduplication: skip if this rule already fired for this lead within cooldown window
-        const alreadyFired = await hasRecentRuleActivity(lead.id, rule.id, SEND_EMAIL_COOLDOWN_HOURS);
+        // Deduplication: skip if this rule already fired for this lead within cooldown window.
+        // For no_contact_hours rules, use triggerValue as cooldown so the rule doesn't re-fire
+        // until that many hours of no-contact have elapsed again after the last action.
+        const cooldownHours =
+          rule.triggerType === "no_contact_hours"
+            ? Number(rule.triggerValue) || DEFAULT_COOLDOWN_HOURS
+            : DEFAULT_COOLDOWN_HOURS;
+        const alreadyFired = await hasRecentRuleActivity(lead.id, rule.id, cooldownHours);
         if (alreadyFired) continue;
 
-        if (rule.actionType === "set_priority") {
+        if (rule.actionType === "set_status") {
           await storage.updateLead(lead.id, { status: rule.actionValue });
           await storage.createActivity({
             leadId: lead.id,
