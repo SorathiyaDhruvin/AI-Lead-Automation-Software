@@ -55,8 +55,8 @@ export interface IStorage {
   getAutomationRulesByUser(userId: string): Promise<AutomationRule[]>;
   getActiveAutomationRules(): Promise<AutomationRule[]>;
   createAutomationRule(rule: InsertAutomationRule): Promise<AutomationRule>;
-  deleteAutomationRule(id: string): Promise<void>;
-  toggleAutomationRule(id: string, isActive: boolean): Promise<AutomationRule | undefined>;
+  deleteAutomationRule(id: string, userId: string): Promise<boolean>;
+  toggleAutomationRule(id: string, isActive: boolean, userId: string): Promise<AutomationRule | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {

@@ -363,8 +363,15 @@ export async function registerRoutes(
       if (!lead) return res.status(404).json({ message: "Lead not found" });
       if (lead.userId !== userId) return res.status(403).json({ message: "Access denied" });
 
-      const message = (req.body.message as string) || "We wanted to follow up and see if you have any questions.";
-      const subject = (req.body.subject as string) || "Following up — LeadFlow";
+      const emailPayloadSchema = z.object({
+        subject: z.string().min(1, "Subject is required").max(300),
+        message: z.string().min(1, "Message is required").max(5000),
+      });
+      const parsed = emailPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0].message });
+      }
+      const { subject, message } = parsed.data;
 
       await sendEmail(lead.email, subject, buildFollowUpEmail(lead.name, message));
 
