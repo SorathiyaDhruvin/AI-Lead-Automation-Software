@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { generateToken, hashPassword, comparePassword, authMiddleware, adminMiddleware } from "./auth";
 import { scoreLead, segmentLeads } from "./ai-service";
-import { registerSchema, loginSchema, insertLeadSchema, insertSegmentSchema, insertLeadRequestSchema, updateLeadRequestSchema } from "@shared/schema";
+import { registerSchema, loginSchema, insertLeadSchema, insertSegmentSchema, insertLeadNoteSchema, insertLeadRequestSchema, updateLeadRequestSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupGoogleOAuth } from "./google-oauth";
 
@@ -176,7 +176,15 @@ export async function registerRoutes(
     try {
       const userId = (req as any).userId;
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-      const leads = await storage.getLeadsByUser(userId, limit);
+      const filters = {
+        search: req.query.search as string | undefined,
+        status: req.query.status as string | undefined,
+        minScore: req.query.minScore ? parseInt(req.query.minScore as string) : undefined,
+        maxScore: req.query.maxScore ? parseInt(req.query.maxScore as string) : undefined,
+        dateFrom: req.query.dateFrom as string | undefined,
+        dateTo: req.query.dateTo as string | undefined,
+      };
+      const leads = await storage.getLeadsByUser(userId, limit, filters);
       res.json(leads);
     } catch (error) {
       console.error("Get leads error:", error);
@@ -202,6 +210,13 @@ export async function registerRoutes(
       const userId = (req as any).userId;
       const data = insertLeadSchema.parse({ ...req.body, userId });
       const lead = await storage.createLead(data);
+      // Auto-log creation activity
+      await storage.createActivity({
+        leadId: lead.id,
+        userId,
+        type: "lead_created",
+        description: `Lead created from ${lead.source} source`,
+      });
       res.status(201).json(lead);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -214,9 +229,20 @@ export async function registerRoutes(
 
   app.patch("/api/leads/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
+      const userId = (req as any).userId;
+      const existing = await storage.getLead(req.params.id);
       const lead = await storage.updateLead(req.params.id, req.body);
       if (!lead) {
         return res.status(404).json({ message: "Lead not found" });
+      }
+      // Auto-log status change activity
+      if (req.body.status && existing && req.body.status !== existing.status) {
+        await storage.createActivity({
+          leadId: lead.id,
+          userId,
+          type: "status_changed",
+          description: `Status changed from "${existing.status}" to "${lead.status}"`,
+        });
       }
       res.json(lead);
     } catch (error) {
@@ -259,10 +285,69 @@ export async function registerRoutes(
         aiRecommendedAction: result.recommendedAction,
       });
 
+      // Auto-log scoring activity
+      await storage.createActivity({
+        leadId: lead.id,
+        userId,
+        type: "scored",
+        description: `AI score updated to ${result.score}/100 (${result.category})`,
+      });
+
       res.json(updatedLead);
     } catch (error) {
       console.error("Score lead error:", error);
       res.status(500).json({ message: "Failed to score lead" });
+    }
+  });
+
+  // Lead notes routes
+  app.get("/api/leads/:id/notes", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const notes = await storage.getNotesByLead(req.params.id);
+      res.json(notes);
+    } catch (error) {
+      console.error("Get notes error:", error);
+      res.status(500).json({ message: "Failed to get notes" });
+    }
+  });
+
+  app.post("/api/leads/:id/notes", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const lead = await storage.getLead(req.params.id);
+      if (!lead) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+      if (lead.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const data = insertLeadNoteSchema.parse({ leadId: req.params.id, userId, text: req.body.text });
+      const note = await storage.createNote(data);
+      // Auto-log note activity
+      await storage.createActivity({
+        leadId: req.params.id,
+        userId,
+        type: "note_added",
+        description: req.body.text.length > 80 ? req.body.text.slice(0, 80) + "…" : req.body.text,
+      });
+      res.status(201).json(note);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Create note error:", error);
+      res.status(500).json({ message: "Failed to create note" });
+    }
+  });
+
+  // Lead activity route
+  app.get("/api/leads/:id/activity", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const activities = await storage.getActivitiesByLead(req.params.id);
+      res.json(activities);
+    } catch (error) {
+      console.error("Get activity error:", error);
+      res.status(500).json({ message: "Failed to get activity" });
     }
   });
 

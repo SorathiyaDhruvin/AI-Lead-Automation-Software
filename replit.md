@@ -91,6 +91,18 @@ Preferred communication style: Simple, everyday language.
 - `recharts`: Data visualization for lead analytics
 - `date-fns`: Date formatting and manipulation
 
+## Recent Changes (April 2026 — Task #2)
+
+### Lead Search, Notes & Activity Timeline (April 2026)
+- **leadNotes table**: New PostgreSQL table (`lead_notes`) with id, leadId, userId, text, createdAt. Schema + db:push applied.
+- **Notes API**: `GET /api/leads/:id/notes` and `POST /api/leads/:id/notes` — structured per-lead notes with timestamp and author. POST also auto-creates an activity log entry.
+- **Activity API**: `GET /api/leads/:id/activity` reads from the `activities` table filtered by leadId, sorted newest first.
+- **Auto-activity logging**: Activities are automatically recorded on lead_created, status_changed (with old/new values), note_added (truncated text preview), and scored (score + category).
+- **Server-side filtering**: `GET /api/leads` now accepts `search` (ilike on name/email), `status`, `minScore`, `maxScore`, `dateFrom`, `dateTo` query params. Storage layer applies Drizzle filter conditions.
+- **Lead Management filter bar**: Added score range select (Hot 70+, Warm 40–69, Cold <40) and date range select (7d/30d/90d). All four filters are server-side. "Clear filters" button appears when any filter is active.
+- **Lead detail panel (lead-management.tsx)**: Tabs now include Notes and Activity. Notes tab uses the new `POST/GET /api/leads/:id/notes` API. Activity tab uses `GET /api/leads/:id/activity` with per-type icons and colors.
+- **LeadDetailsSheet component**: Fully tabbed (Info / Notes / Activity) with same Notes and Activity functionality. Score button invalidates activity cache.
+
 ## Recent Changes (January 2026)
 
 ### Login Flow Fix

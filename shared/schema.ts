@@ -60,6 +60,15 @@ export const activities = pgTable("activities", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// Lead notes table (structured per-lead notes with author + timestamp)
+export const leadNotes = pgTable("lead_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  text: text("text").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // Lead requests table (users submit requests, admins manage them)
 export const leadRequests = pgTable("lead_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -110,6 +119,11 @@ export const insertActivitySchema = createInsertSchema(activities).omit({
   createdAt: true,
 });
 
+export const insertLeadNoteSchema = createInsertSchema(leadNotes).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertLeadRequestSchema = createInsertSchema(leadRequests).omit({
   id: true,
   createdAt: true,
@@ -146,6 +160,8 @@ export type InsertSegment = z.infer<typeof insertSegmentSchema>;
 export type Segment = typeof segments.$inferSelect;
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type Activity = typeof activities.$inferSelect;
+export type InsertLeadNote = z.infer<typeof insertLeadNoteSchema>;
+export type LeadNote = typeof leadNotes.$inferSelect;
 export type InsertLeadRequest = z.infer<typeof insertLeadRequestSchema>;
 export type LeadRequest = typeof leadRequests.$inferSelect;
 export type UpdateLeadRequest = z.infer<typeof updateLeadRequestSchema>;

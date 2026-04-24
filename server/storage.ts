@@ -1,7 +1,16 @@
 import { db } from "./db";
-import { usersLegacy, leads, segments, activities, leadRequests } from "@shared/schema";
-import { eq, desc, gte, and } from "drizzle-orm";
-import type { InsertUserLegacy, UserLegacy, InsertLead, Lead, InsertSegment, Segment, InsertActivity, Activity, InsertLeadRequest, LeadRequest } from "@shared/schema";
+import { usersLegacy, leads, segments, activities, leadNotes, leadRequests } from "@shared/schema";
+import { eq, desc, gte, lte, ilike, and, or, sql } from "drizzle-orm";
+import type { InsertUserLegacy, UserLegacy, InsertLead, Lead, InsertSegment, Segment, InsertActivity, Activity, InsertLeadNote, LeadNote, InsertLeadRequest, LeadRequest } from "@shared/schema";
+
+export interface LeadFilters {
+  search?: string;
+  status?: string;
+  minScore?: number;
+  maxScore?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}
 
 export interface IStorage {
   // User methods (for legacy email/password auth)
@@ -12,7 +21,7 @@ export interface IStorage {
 
   // Lead methods
   getLead(id: string): Promise<Lead | undefined>;
-  getLeadsByUser(userId: string, limit?: number): Promise<Lead[]>;
+  getLeadsByUser(userId: string, limit?: number, filters?: LeadFilters): Promise<Lead[]>;
   createLead(lead: InsertLead): Promise<Lead>;
   updateLead(id: string, updates: Partial<Lead>): Promise<Lead | undefined>;
   deleteLead(id: string): Promise<void>;
@@ -30,6 +39,10 @@ export interface IStorage {
   // Activity methods
   getActivitiesByLead(leadId: string): Promise<Activity[]>;
   createActivity(activity: InsertActivity): Promise<Activity>;
+
+  // Lead note methods
+  getNotesByLead(leadId: string): Promise<LeadNote[]>;
+  createNote(note: InsertLeadNote): Promise<LeadNote>;
 
   // Lead request methods
   getLeadRequest(id: string): Promise<LeadRequest | undefined>;
@@ -67,13 +80,44 @@ export class DatabaseStorage implements IStorage {
     return lead;
   }
 
-  async getLeadsByUser(userId: string, limit?: number): Promise<Lead[]> {
+  async getLeadsByUser(userId: string, limit?: number, filters?: LeadFilters): Promise<Lead[]> {
+    const conditions = [eq(leads.userId, userId)];
+
+    if (filters?.search) {
+      const term = `%${filters.search}%`;
+      conditions.push(
+        or(ilike(leads.name, term), ilike(leads.email, term)) as any
+      );
+    }
+
+    if (filters?.status && filters.status !== "all") {
+      conditions.push(eq(leads.status, filters.status));
+    }
+
+    if (filters?.minScore !== undefined) {
+      conditions.push(gte(leads.aiScore, filters.minScore));
+    }
+
+    if (filters?.maxScore !== undefined) {
+      conditions.push(lte(leads.aiScore, filters.maxScore));
+    }
+
+    if (filters?.dateFrom) {
+      conditions.push(gte(leads.createdAt, new Date(filters.dateFrom)));
+    }
+
+    if (filters?.dateTo) {
+      const to = new Date(filters.dateTo);
+      to.setHours(23, 59, 59, 999);
+      conditions.push(lte(leads.createdAt, to));
+    }
+
     const query = db
       .select()
       .from(leads)
-      .where(eq(leads.userId, userId))
+      .where(and(...conditions))
       .orderBy(desc(leads.createdAt));
-    
+
     if (limit) {
       return query.limit(limit);
     }
@@ -182,6 +226,20 @@ export class DatabaseStorage implements IStorage {
   async createActivity(insertActivity: InsertActivity): Promise<Activity> {
     const [activity] = await db.insert(activities).values(insertActivity).returning();
     return activity;
+  }
+
+  // Lead note methods
+  async getNotesByLead(leadId: string): Promise<LeadNote[]> {
+    return db
+      .select()
+      .from(leadNotes)
+      .where(eq(leadNotes.leadId, leadId))
+      .orderBy(desc(leadNotes.createdAt));
+  }
+
+  async createNote(insertNote: InsertLeadNote): Promise<LeadNote> {
+    const [note] = await db.insert(leadNotes).values(insertNote).returning();
+    return note;
   }
 
   // Lead request methods
