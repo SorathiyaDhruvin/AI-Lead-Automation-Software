@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   Sparkles, Mail, Phone, Building, Calendar, Brain, TrendingUp, Lightbulb, ArrowRight,
-  Send, FileText, Activity, Clock, User, Star, StickyNote,
+  Send, FileText, Activity, Clock, User, Star, StickyNote, type LucideIcon,
 } from "lucide-react";
 import {
   Sheet,
@@ -63,7 +63,7 @@ const categoryColors: Record<string, string> = {
   Cold: "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-400",
 };
 
-const activityIcons: Record<string, any> = {
+const activityIcons: Record<string, LucideIcon> = {
   lead_created: User,
   status_changed: TrendingUp,
   note_added: StickyNote,

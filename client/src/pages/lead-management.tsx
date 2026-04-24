@@ -24,6 +24,7 @@ import {
   Clock,
   StickyNote,
   TrendingUp,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,7 +89,7 @@ interface LeadActivity {
   createdAt: string;
 }
 
-const activityIcons: Record<string, any> = {
+const activityIcons: Record<string, LucideIcon> = {
   lead_created: User,
   status_changed: TrendingUp,
   note_added: StickyNote,

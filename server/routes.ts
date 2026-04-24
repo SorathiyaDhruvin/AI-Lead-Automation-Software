@@ -231,12 +231,18 @@ export async function registerRoutes(
     try {
       const userId = (req as any).userId;
       const existing = await storage.getLead(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+      if (existing.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
       const lead = await storage.updateLead(req.params.id, req.body);
       if (!lead) {
         return res.status(404).json({ message: "Lead not found" });
       }
       // Auto-log status change activity
-      if (req.body.status && existing && req.body.status !== existing.status) {
+      if (req.body.status && req.body.status !== existing.status) {
         await storage.createActivity({
           leadId: lead.id,
           userId,
