@@ -41,7 +41,7 @@ export interface IStorage {
   createActivity(activity: InsertActivity): Promise<Activity>;
 
   // Lead note methods
-  getNotesByLead(leadId: string): Promise<LeadNote[]>;
+  getNotesByLead(leadId: string): Promise<Array<LeadNote & { authorName: string }>>;
   createNote(note: InsertLeadNote): Promise<LeadNote>;
 
   // Lead request methods
@@ -228,12 +228,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Lead note methods
-  async getNotesByLead(leadId: string): Promise<LeadNote[]> {
-    return db
-      .select()
+  async getNotesByLead(leadId: string): Promise<Array<LeadNote & { authorName: string }>> {
+    const rows = await db
+      .select({
+        id: leadNotes.id,
+        leadId: leadNotes.leadId,
+        userId: leadNotes.userId,
+        text: leadNotes.text,
+        createdAt: leadNotes.createdAt,
+        authorName: usersLegacy.name,
+      })
       .from(leadNotes)
+      .leftJoin(usersLegacy, eq(leadNotes.userId, usersLegacy.id))
       .where(eq(leadNotes.leadId, leadId))
       .orderBy(desc(leadNotes.createdAt));
+    return rows.map((r) => ({ ...r, authorName: r.authorName ?? "Unknown" }));
   }
 
   async createNote(insertNote: InsertLeadNote): Promise<LeadNote> {

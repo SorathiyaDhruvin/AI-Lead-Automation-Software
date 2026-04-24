@@ -55,7 +55,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
-import { getAuthHeaders, useAuth } from "@/lib/auth";
+import { getAuthHeaders } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { LeadDialog } from "@/components/lead-dialog";
 import type { Lead } from "@shared/schema";
@@ -78,6 +78,7 @@ interface LeadNote {
   userId: string;
   text: string;
   createdAt: string;
+  authorName: string;
 }
 
 interface LeadActivity {
@@ -113,7 +114,6 @@ const activityColors: Record<string, string> = {
 
 export default function LeadManagementPage() {
   const { toast } = useToast();
-  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [scoreFilter, setScoreFilter] = useState<string>("all");
@@ -663,7 +663,7 @@ export default function LeadManagementPage() {
                           <p className="text-sm text-foreground whitespace-pre-wrap">{note.text}</p>
                           <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
                             <User className="h-3 w-3" />
-                            <span>{user?.name || "You"}</span>
+                            <span>{note.authorName}</span>
                             <span>·</span>
                             <Clock className="h-3 w-3" />
                             <span>{new Date(note.createdAt).toLocaleString()}</span>

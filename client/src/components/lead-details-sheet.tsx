@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { getAuthHeaders, useAuth } from "@/lib/auth";
+import { getAuthHeaders } from "@/lib/auth";
 import { queryClient } from "@/lib/queryClient";
 import { ScoreBadge } from "@/components/score-badge";
 import type { Lead } from "@shared/schema";
@@ -31,6 +31,7 @@ interface LeadNote {
   userId: string;
   text: string;
   createdAt: string;
+  authorName: string;
 }
 
 interface LeadActivity {
@@ -82,7 +83,6 @@ const activityColors: Record<string, string> = {
 
 export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
   const { toast } = useToast();
-  const { user } = useAuth();
   const [displayedLead, setDisplayedLead] = useState<Lead | null>(lead);
   const [activeTab, setActiveTab] = useState("info");
   const [newNote, setNewNote] = useState("");
@@ -325,7 +325,7 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
                     <p className="text-sm text-foreground whitespace-pre-wrap">{note.text}</p>
                     <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
                       <User className="h-3 w-3" />
-                      <span>{user?.name || "You"}</span>
+                      <span>{note.authorName}</span>
                       <span>·</span>
                       <Clock className="h-3 w-3" />
                       <span>{new Date(note.createdAt).toLocaleString()}</span>
