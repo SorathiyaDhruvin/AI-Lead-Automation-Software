@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { usersLegacy, leads, segments, activities, leadNotes, leadRequests, automationRules } from "@shared/schema";
+import { usersLegacy, leads, segments, activities, leadNotes, leadRequests, automationRules, notifications } from "@shared/schema";
 import { eq, desc, gte, lte, ilike, and, or, type SQL } from "drizzle-orm";
-import type { InsertUserLegacy, UserLegacy, InsertLead, Lead, InsertSegment, Segment, InsertActivity, Activity, InsertLeadNote, LeadNote, InsertLeadRequest, LeadRequest, InsertAutomationRule, AutomationRule } from "@shared/schema";
+import type { InsertUserLegacy, UserLegacy, InsertLead, Lead, InsertSegment, Segment, InsertActivity, Activity, InsertLeadNote, LeadNote, InsertLeadRequest, LeadRequest, InsertAutomationRule, AutomationRule, InsertNotification, Notification } from "@shared/schema";
 
 export interface LeadFilters {
   search?: string;
@@ -57,6 +57,13 @@ export interface IStorage {
   createAutomationRule(rule: InsertAutomationRule): Promise<AutomationRule>;
   deleteAutomationRule(id: string, userId: string): Promise<boolean>;
   toggleAutomationRule(id: string, isActive: boolean, userId: string): Promise<AutomationRule | undefined>;
+
+  // Notification methods
+  getNotificationsByUser(userId: string, limit?: number): Promise<Notification[]>;
+  getUnreadNotificationCount(userId: string): Promise<number>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  markNotificationRead(id: string, userId: string): Promise<Notification | undefined>;
+  markAllNotificationsRead(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -328,6 +335,45 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(automationRules.id, id), eq(automationRules.userId, userId)))
       .returning();
     return updated;
+  }
+
+  // Notification methods
+  async getNotificationsByUser(userId: string, limit = 50): Promise<Notification[]> {
+    return db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt))
+      .limit(limit);
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+    return rows.length;
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [created] = await db.insert(notifications).values(notification).returning();
+    return created;
+  }
+
+  async markNotificationRead(id: string, userId: string): Promise<Notification | undefined> {
+    const [updated] = await db
+      .update(notifications)
+      .set({ isRead: true })
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    await db
+      .update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.userId, userId));
   }
 }
 

@@ -1,5 +1,6 @@
 import type { Express, Request, Response, RequestHandler } from "express";
 import { createServer, type Server } from "http";
+import multer from "multer";
 import { storage } from "./storage";
 import { generateToken, hashPassword, comparePassword, authMiddleware, adminMiddleware } from "./auth";
 import { scoreLead, segmentLeads } from "./ai-service";
@@ -7,6 +8,8 @@ import { registerSchema, loginSchema, insertLeadSchema, insertSegmentSchema, ins
 import { z } from "zod";
 import { setupGoogleOAuth } from "./google-oauth";
 import { sendEmail, buildWelcomeEmail, buildFollowUpEmail } from "./email-service";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 export async function registerRoutes(
   httpServer: Server,
@@ -193,6 +196,43 @@ export async function registerRoutes(
     }
   });
 
+  // CSV Export — must be registered BEFORE /api/leads/:id to avoid param collision
+  app.get("/api/leads/export", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const filters = {
+        search: req.query.search as string | undefined,
+        status: req.query.status as string | undefined,
+        minScore: req.query.minScore ? parseInt(req.query.minScore as string) : undefined,
+        maxScore: req.query.maxScore ? parseInt(req.query.maxScore as string) : undefined,
+        dateFrom: req.query.dateFrom as string | undefined,
+        dateTo: req.query.dateTo as string | undefined,
+      };
+      const userLeads = await storage.getLeadsByUser(userId, undefined, filters);
+
+      const header = "name,email,company,phone,source,status,ai_score,ai_category,created_at";
+      const rows = userLeads.map((l) => [
+        `"${(l.name || "").replace(/"/g, '""')}"`,
+        `"${(l.email || "").replace(/"/g, '""')}"`,
+        `"${(l.company || "").replace(/"/g, '""')}"`,
+        `"${(l.phone || "").replace(/"/g, '""')}"`,
+        `"${(l.source || "").replace(/"/g, '""')}"`,
+        `"${(l.status || "").replace(/"/g, '""')}"`,
+        l.aiScore ?? "",
+        `"${(l.aiCategory || "").replace(/"/g, '""')}"`,
+        `"${new Date(l.createdAt).toISOString().slice(0, 10)}"`,
+      ].join(","));
+
+      const csv = [header, ...rows].join("\n");
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="leads-export-${Date.now()}.csv"`);
+      res.send(csv);
+    } catch (error) {
+      console.error("CSV export error:", error);
+      res.status(500).json({ message: "Failed to export leads" });
+    }
+  });
+
   app.get("/api/leads/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const lead = await storage.getLead(req.params.id);
@@ -218,6 +258,13 @@ export async function registerRoutes(
         type: "lead_created",
         description: `Lead created from ${lead.source} source`,
       });
+      // Create in-app notification
+      storage.createNotification({
+        userId,
+        type: "lead_created",
+        message: `New lead added: ${lead.name} (${lead.email})`,
+        isRead: false,
+      }).catch((err) => console.error("Notification error:", err));
       // Send welcome email (fire-and-forget, never block response)
       sendEmail(lead.email, "Welcome to LeadFlow!", buildWelcomeEmail(lead.name)).catch((err) =>
         console.error("Welcome email error:", err)
@@ -246,7 +293,7 @@ export async function registerRoutes(
       if (!lead) {
         return res.status(404).json({ message: "Lead not found" });
       }
-      // Auto-log status change activity
+      // Auto-log status change activity + notification
       if (req.body.status && req.body.status !== existing.status) {
         await storage.createActivity({
           leadId: lead.id,
@@ -254,6 +301,12 @@ export async function registerRoutes(
           type: "status_changed",
           description: `Status changed from "${existing.status}" to "${lead.status}"`,
         });
+        storage.createNotification({
+          userId,
+          type: "status_changed",
+          message: `${existing.name} moved to "${lead!.status}"`,
+          isRead: false,
+        }).catch((err) => console.error("Notification error:", err));
       }
       res.json(lead);
     } catch (error) {
@@ -679,6 +732,130 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Admin stats error:", error);
       res.status(500).json({ message: "Failed to get admin stats" });
+    }
+  });
+
+  // Notification routes
+  app.get("/api/notifications", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const notifs = await storage.getNotificationsByUser(userId, 50);
+      const unreadCount = await storage.getUnreadNotificationCount(userId);
+      res.json({ notifications: notifs, unreadCount });
+    } catch (error) {
+      console.error("Get notifications error:", error);
+      res.status(500).json({ message: "Failed to get notifications" });
+    }
+  });
+
+  app.patch("/api/notifications/:id/read", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const notif = await storage.markNotificationRead(req.params.id, userId);
+      if (!notif) return res.status(404).json({ message: "Notification not found" });
+      res.json(notif);
+    } catch (error) {
+      console.error("Mark notification read error:", error);
+      res.status(500).json({ message: "Failed to mark notification as read" });
+    }
+  });
+
+  app.post("/api/notifications/mark-all-read", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      await storage.markAllNotificationsRead(userId);
+      res.json({ message: "All notifications marked as read" });
+    } catch (error) {
+      console.error("Mark all read error:", error);
+      res.status(500).json({ message: "Failed to mark all notifications as read" });
+    }
+  });
+
+  // CSV Import route
+  app.post("/api/leads/import", authMiddleware as RequestHandler, upload.single("file"), async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const text = req.file.buffer.toString("utf-8");
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length < 2) {
+        return res.status(400).json({ message: "CSV must have a header row and at least one data row" });
+      }
+
+      const parseRow = (line: string): string[] => {
+        const result: string[] = [];
+        let current = "";
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+            else { inQuotes = !inQuotes; }
+          } else if (ch === "," && !inQuotes) {
+            result.push(current.trim());
+            current = "";
+          } else {
+            current += ch;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      };
+
+      const headerRow = parseRow(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, "_"));
+      const idx = (name: string) => headerRow.indexOf(name);
+
+      let created = 0;
+      const errors: string[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const row = parseRow(lines[i]);
+        const name = row[idx("name")] || "";
+        const email = row[idx("email")] || "";
+        const company = row[idx("company")] || undefined;
+        const phone = row[idx("phone")] || undefined;
+        const source = row[idx("source")] || "csv_import";
+
+        if (!name || !email) {
+          errors.push(`Row ${i + 1}: missing required name or email`);
+          continue;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          errors.push(`Row ${i + 1}: invalid email "${email}"`);
+          continue;
+        }
+
+        try {
+          const lead = await storage.createLead({ userId, name, email, company, phone, source });
+          await storage.createActivity({
+            leadId: lead.id,
+            userId,
+            type: "lead_created",
+            description: `Lead imported from CSV`,
+          });
+          created++;
+        } catch {
+          errors.push(`Row ${i + 1}: failed to create lead for "${email}"`);
+        }
+      }
+
+      // Create a summary notification
+      if (created > 0) {
+        storage.createNotification({
+          userId,
+          type: "lead_created",
+          message: `CSV import: ${created} lead${created !== 1 ? "s" : ""} imported successfully`,
+          isRead: false,
+        }).catch(() => {});
+      }
+
+      res.json({ created, failed: errors.length, errors: errors.slice(0, 20) });
+    } catch (error) {
+      console.error("CSV import error:", error);
+      res.status(500).json({ message: "Failed to import CSV" });
     }
   });
 

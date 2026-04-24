@@ -91,6 +91,18 @@ Preferred communication style: Simple, everyday language.
 - `recharts`: Data visualization for lead analytics
 - `date-fns`: Date formatting and manipulation
 
+## Recent Changes (April 2026 — Task #4)
+
+### Notifications, CSV Import & Export
+- **notifications table**: `id, userId, type, message, isRead, createdAt`. db:push applied.
+- **Notification API**: `GET /api/notifications` (returns list + unreadCount), `PATCH /api/notifications/:id/read`, `POST /api/notifications/mark-all-read`.
+- **Auto-notifications**: Fired on lead creation and CSV import (summary message).
+- **Notification Bell UI** (`App.tsx`): Bell icon with unread count badge in the header (between sidebar trigger and theme toggle). Dropdown shows all notifications; per-item mark-as-read; "Mark all read" button. 30-second polling.
+- **CSV Export**: `GET /api/leads/export` — accepts same filters as lead list; returns CSV with 9 columns; route registered before `/api/leads/:id` to avoid Express param collision.
+- **CSV Import**: `POST /api/leads/import` (multipart, field "file"); parses CSV header row; validates name+email; creates leads + activity entries; returns `{created, failed, errors[]}`.
+- **Lead Management UI**: "Import CSV" and "Export CSV" outline buttons added to page header alongside "Add Lead". Import triggers hidden `<input type="file">`. Export fetches blob and triggers browser download with current active filters applied.
+- **data-testid additions**: `button-notifications`, `badge-notification-count`, `button-mark-all-read`, `button-import-csv`, `button-export-csv`, `input-import-file`, `notification-item-{id}`.
+
 ## Recent Changes (April 2026 — Task #3)
 
 ### Lead Automation Rules & Email Automation

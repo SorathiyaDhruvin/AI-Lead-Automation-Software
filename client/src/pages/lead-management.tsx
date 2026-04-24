@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ClipboardList,
@@ -24,6 +24,8 @@ import {
   Clock,
   StickyNote,
   TrendingUp,
+  Upload,
+  Download,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -134,6 +136,7 @@ export default function LeadManagementPage() {
   const [emailTargetLead, setEmailTargetLead] = useState<Lead | null>(null);
   const [emailSubject, setEmailSubject] = useState("Following up — LeadFlow");
   const [emailMessage, setEmailMessage] = useState("");
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   // Build query params for server-side filtering
   const buildLeadQueryParams = () => {
@@ -318,6 +321,74 @@ export default function LeadManagementPage() {
 
   const hasActiveFilters = searchQuery || statusFilter !== "all" || scoreFilter !== "all" || dateFilter !== "all";
 
+  const importMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/leads/import", {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: form,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Import failed");
+      }
+      return res.json() as Promise<{ created: number; failed: number; errors: string[] }>;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      toast({
+        title: `Import complete`,
+        description: `${result.created} lead${result.created !== 1 ? "s" : ""} imported${result.failed > 0 ? `, ${result.failed} failed` : ""}`,
+        variant: result.failed > 0 ? "destructive" : "default",
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Import failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      importMutation.mutate(file);
+      e.target.value = "";
+    }
+  };
+
+  const handleExportCSV = () => {
+    const params = new URLSearchParams();
+    if (searchQuery.trim()) params.set("search", searchQuery.trim());
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    if (scoreFilter === "hot") { params.set("minScore", "70"); }
+    else if (scoreFilter === "warm") { params.set("minScore", "40"); params.set("maxScore", "69"); }
+    else if (scoreFilter === "cold") { params.set("maxScore", "39"); }
+    if (dateFilter === "7d") {
+      const d = new Date(); d.setDate(d.getDate() - 7);
+      params.set("dateFrom", d.toISOString().slice(0, 10));
+    } else if (dateFilter === "30d") {
+      const d = new Date(); d.setDate(d.getDate() - 30);
+      params.set("dateFrom", d.toISOString().slice(0, 10));
+    } else if (dateFilter === "90d") {
+      const d = new Date(); d.setDate(d.getDate() - 90);
+      params.set("dateFrom", d.toISOString().slice(0, 10));
+    }
+    const qs = params.toString();
+    const url = `/api/leads/export${qs ? `?${qs}` : ""}`;
+    fetch(url, { headers: getAuthHeaders() })
+      .then((r) => r.blob())
+      .then((blob) => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `leads-export-${Date.now()}.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(() => toast({ title: "Export failed", variant: "destructive" }));
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -325,10 +396,39 @@ export default function LeadManagementPage() {
           <h1 className="text-2xl font-bold text-foreground">Lead Management</h1>
           <p className="text-muted-foreground">Manage leads, track activities, and close deals</p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} data-testid="button-add-lead">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Lead
-        </Button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleImportFile}
+            data-testid="input-import-file"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => importFileRef.current?.click()}
+            disabled={importMutation.isPending}
+            data-testid="button-import-csv"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            {importMutation.isPending ? "Importing…" : "Import CSV"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            data-testid="button-export-csv"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+          <Button onClick={() => setIsDialogOpen(true)} data-testid="button-add-lead">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Lead
+          </Button>
+        </div>
       </div>
 
       {/* Search & Filter Bar */}

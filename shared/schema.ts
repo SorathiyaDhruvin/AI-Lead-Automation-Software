@@ -89,6 +89,16 @@ export const leadRequests = pgTable("lead_requests", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// Notifications table (in-app only)
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  type: text("type").notNull(), // lead_created | status_changed | automation_action
+  message: text("message").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // Automation rules table
 export const automationRules = pgTable("automation_rules", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -147,6 +157,11 @@ export const insertLeadRequestSchema = createInsertSchema(leadRequests).omit({
   reviewedAt: true,
 });
 
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertAutomationRuleSchema = createInsertSchema(automationRules).omit({
   id: true,
   createdAt: true,
@@ -191,3 +206,5 @@ export type LeadRequest = typeof leadRequests.$inferSelect;
 export type UpdateLeadRequest = z.infer<typeof updateLeadRequestSchema>;
 export type InsertAutomationRule = z.infer<typeof insertAutomationRuleSchema>;
 export type AutomationRule = typeof automationRules.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;
