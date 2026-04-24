@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { usersLegacy, leads, segments, activities, leadNotes, leadRequests } from "@shared/schema";
-import { eq, desc, gte, lte, ilike, and, or, sql } from "drizzle-orm";
+import { eq, desc, gte, lte, ilike, and, or, type SQL } from "drizzle-orm";
 import type { InsertUserLegacy, UserLegacy, InsertLead, Lead, InsertSegment, Segment, InsertActivity, Activity, InsertLeadNote, LeadNote, InsertLeadRequest, LeadRequest } from "@shared/schema";
 
 export interface LeadFilters {
@@ -81,13 +81,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLeadsByUser(userId: string, limit?: number, filters?: LeadFilters): Promise<Lead[]> {
-    const conditions = [eq(leads.userId, userId)];
+    const conditions: SQL[] = [eq(leads.userId, userId)];
 
     if (filters?.search) {
       const term = `%${filters.search}%`;
-      conditions.push(
-        or(ilike(leads.name, term), ilike(leads.email, term)) as any
-      );
+      const searchCondition = or(ilike(leads.name, term), ilike(leads.email, term));
+      if (searchCondition) conditions.push(searchCondition);
     }
 
     if (filters?.status && filters.status !== "all") {

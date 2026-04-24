@@ -303,6 +303,10 @@ export async function registerRoutes(
   // Lead notes routes
   app.get("/api/leads/:id/notes", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
+      const userId = (req as any).userId;
+      const lead = await storage.getLead(req.params.id);
+      if (!lead) return res.status(404).json({ message: "Lead not found" });
+      if (lead.userId !== userId) return res.status(403).json({ message: "Access denied" });
       const notes = await storage.getNotesByLead(req.params.id);
       res.json(notes);
     } catch (error) {
@@ -343,6 +347,10 @@ export async function registerRoutes(
   // Lead activity route
   app.get("/api/leads/:id/activity", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
+      const userId = (req as any).userId;
+      const lead = await storage.getLead(req.params.id);
+      if (!lead) return res.status(404).json({ message: "Lead not found" });
+      if (lead.userId !== userId) return res.status(403).json({ message: "Access denied" });
       const activities = await storage.getActivitiesByLead(req.params.id);
       res.json(activities);
     } catch (error) {
