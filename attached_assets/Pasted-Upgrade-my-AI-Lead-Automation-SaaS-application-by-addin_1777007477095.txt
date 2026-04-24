@@ -1,0 +1,188 @@
+Upgrade my AI Lead Automation SaaS application by adding the following features.
+For each feature, understand its purpose and implement complete backend + frontend code (no placeholders).
+
+-------------------------------
+1. AI LEAD SCORING & SUMMARY
+-------------------------------
+Purpose:
+This is the core intelligence of the app. The system should automatically analyze each lead and determine how valuable it is.
+
+What to build:
+- Analyze lead data (name, email, message, source, activity)
+- Generate:
+  - score (0–100)
+  - category (Hot / Warm / Cold)
+  - AI-generated summary
+  - recommended next action
+
+Implementation:
+- Create API: POST /api/ai/score-lead
+- Store results in database inside lead document
+- Show score and summary in UI (lead details page)
+
+-------------------------------
+2. DASHBOARD ANALYTICS
+-------------------------------
+Purpose:
+Give users a clear overview of business performance and lead conversion.
+
+What to build:
+- Total leads count
+- Leads by status (pending, approved, rejected)
+- Conversion rate (%)
+- Graph (daily or weekly leads)
+
+Implementation:
+- Create API: GET /api/dashboard/stats
+- Use chart library on frontend
+- Update dashboard UI
+
+-------------------------------
+3. LEAD AUTOMATION SYSTEM
+-------------------------------
+Purpose:
+Reduce manual work by automating repetitive tasks.
+
+What to build:
+- Rule-based system:
+  Example:
+  - If lead not contacted in 24h → send reminder
+  - If score > 80 → mark as high priority
+
+Implementation:
+- Create rules collection in DB
+- Background job (cron)
+- API: POST /api/automation/rules
+
+-------------------------------
+4. EMAIL AUTOMATION
+-------------------------------
+Purpose:
+Automatically communicate with leads.
+
+What to build:
+- Send email when lead is created
+- Send follow-up emails after delay
+- Use reusable templates
+
+Implementation:
+- Use Nodemailer or email service
+- API: POST /api/email/send
+- Trigger emails from automation system
+
+-------------------------------
+5. SEARCH & FILTER SYSTEM
+-------------------------------
+Purpose:
+Allow users to quickly find specific leads.
+
+What to build:
+- Filters:
+  - status
+  - date
+  - score
+- Search:
+  - name
+  - email
+
+Implementation:
+- Update API:
+  GET /api/leads?status=&search=&date=
+- Add frontend filter UI
+
+-------------------------------
+6. NOTES SYSTEM
+-------------------------------
+Purpose:
+Allow users/admins to add comments on leads.
+
+What to build:
+- Multiple notes per lead
+- Each note contains:
+  - text
+  - author
+  - timestamp
+
+Implementation:
+- API:
+  POST /api/leads/:id/notes
+  GET /api/leads/:id/notes
+- Show notes in lead details page
+
+-------------------------------
+7. ACTIVITY TIMELINE
+-------------------------------
+Purpose:
+Track all actions performed on a lead.
+
+What to build:
+- Track events:
+  - lead created
+  - status changed
+  - note added
+
+Implementation:
+- Store activity logs in DB
+- API:
+  GET /api/leads/:id/activity
+- Display timeline in UI
+
+-------------------------------
+8. NOTIFICATION SYSTEM
+-------------------------------
+Purpose:
+Keep users informed about important updates.
+
+What to build:
+- Notifications for:
+  - new lead
+  - status change
+  - reminders
+
+Implementation:
+- Store notifications in DB
+- API:
+  GET /api/notifications
+- Show notification panel in UI
+
+-------------------------------
+9. ROLE-BASED ACCESS SYSTEM
+-------------------------------
+Purpose:
+Control what users can access.
+
+What to build:
+- Roles:
+  - admin
+  - user
+
+Implementation:
+- Store role in user model
+- Middleware:
+  restrict access to admin routes
+- Assign leads to users
+
+-------------------------------
+10. IMPORT / EXPORT LEADS
+-------------------------------
+Purpose:
+Allow bulk operations.
+
+What to build:
+- Upload CSV → create leads
+- Export leads → download CSV
+
+Implementation:
+- API:
+  POST /api/leads/import
+  GET /api/leads/export
+
+-------------------------------
+GENERAL REQUIREMENTS
+-------------------------------
+- Use clean backend structure (controllers, routes, models)
+- Use MongoDB or any DB properly structured
+- Handle errors properly
+- Use async/await
+- Make UI clean and responsive
+- Ensure all features are fully working (no dummy logic)
