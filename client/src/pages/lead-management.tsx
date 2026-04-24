@@ -55,7 +55,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
-import { getAuthHeaders } from "@/lib/auth";
+import { getAuthHeaders, useAuth } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { LeadDialog } from "@/components/lead-dialog";
 import type { Lead } from "@shared/schema";
@@ -113,6 +113,7 @@ const activityColors: Record<string, string> = {
 
 export default function LeadManagementPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [scoreFilter, setScoreFilter] = useState<string>("all");
@@ -195,12 +196,13 @@ export default function LeadManagementPage() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      return apiRequest("PATCH", `/api/leads/${id}`, { status }, getAuthHeaders());
+      const res = await apiRequest("PATCH", `/api/leads/${id}`, { status }, getAuthHeaders());
+      return res.json() as Promise<Lead>;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: Lead) => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       queryClient.invalidateQueries({ queryKey: ["/api/leads", detailLead?.id, "activity"] });
-      if (detailLead) setDetailLead(data as Lead);
+      if (detailLead) setDetailLead(data);
       toast({ title: "Status Updated", description: "Lead status has been changed" });
     },
     onError: () => {
@@ -659,10 +661,13 @@ export default function LeadManagementPage() {
                       {notes.map((note) => (
                         <div key={note.id} className="p-3 rounded-lg bg-muted/50" data-testid={`note-item-${note.id}`}>
                           <p className="text-sm text-foreground whitespace-pre-wrap">{note.text}</p>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            <Clock className="h-3 w-3 inline mr-1" />
-                            {new Date(note.createdAt).toLocaleString()}
-                          </p>
+                          <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                            <User className="h-3 w-3" />
+                            <span>{user?.name || "You"}</span>
+                            <span>·</span>
+                            <Clock className="h-3 w-3" />
+                            <span>{new Date(note.createdAt).toLocaleString()}</span>
+                          </div>
                         </div>
                       ))}
                     </div>
