@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Sparkles, Mail, Phone, Building, Calendar, Brain, TrendingUp, Lightbulb, ArrowRight } from "lucide-react";
@@ -41,18 +42,25 @@ const categoryColors: Record<string, string> = {
 
 export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
   const { toast } = useToast();
+  const [displayedLead, setDisplayedLead] = useState<Lead | null>(lead);
+
+  useEffect(() => {
+    setDisplayedLead(lead);
+  }, [lead]);
 
   const scoreMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`/api/leads/${lead?.id}/score`, {
+      const response = await fetch(`/api/leads/${displayedLead?.id}/score`, {
         method: "POST",
         headers: getAuthHeaders(),
       });
       if (!response.ok) throw new Error("Failed to score lead");
-      return response.json();
+      return response.json() as Promise<Lead>;
     },
     onSuccess: (updatedLead: Lead) => {
+      setDisplayedLead(updatedLead);
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({
         title: "AI Scoring Complete",
         description: `Lead scored ${updatedLead.aiScore}/100 — categorized as ${updatedLead.aiCategory}`,
@@ -63,7 +71,7 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
     },
   });
 
-  if (!lead) return null;
+  if (!displayedLead) return null;
 
   const getInitials = (name: string) => {
     return name
@@ -81,23 +89,23 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
           <div className="flex items-center gap-4">
             <Avatar className="h-14 w-14">
               <AvatarFallback className="bg-primary text-primary-foreground text-lg">
-                {getInitials(lead.name)}
+                {getInitials(displayedLead.name)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <SheetTitle className="text-xl">{lead.name}</SheetTitle>
+              <SheetTitle className="text-xl">{displayedLead.name}</SheetTitle>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <Badge className={statusColors[lead.status]}>{lead.status}</Badge>
-                {lead.aiCategory && (
+                <Badge className={statusColors[displayedLead.status]}>{displayedLead.status}</Badge>
+                {displayedLead.aiCategory && (
                   <Badge
                     variant="outline"
-                    className={categoryColors[lead.aiCategory] || ""}
+                    className={categoryColors[displayedLead.aiCategory] || ""}
                     data-testid="badge-ai-category"
                   >
-                    {lead.aiCategory}
+                    {displayedLead.aiCategory}
                   </Badge>
                 )}
-                <span className="text-sm text-muted-foreground capitalize">{lead.source}</span>
+                <span className="text-sm text-muted-foreground capitalize">{displayedLead.source}</span>
               </div>
             </div>
           </div>
@@ -107,7 +115,7 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
           <div className="flex items-center gap-4">
             <div className="flex-1">
               <p className="text-sm text-muted-foreground mb-1">AI Score</p>
-              <ScoreBadge score={lead.aiScore} size="lg" />
+              <ScoreBadge score={displayedLead.aiScore} size="lg" />
             </div>
             <Button
               onClick={() => scoreMutation.mutate()}
@@ -128,28 +136,28 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
             <div className="grid gap-3">
               <div className="flex items-center gap-3 text-sm">
                 <Mail className="h-4 w-4 text-muted-foreground" />
-                <span>{lead.email}</span>
+                <span>{displayedLead.email}</span>
               </div>
-              {lead.phone && (
+              {displayedLead.phone && (
                 <div className="flex items-center gap-3 text-sm">
                   <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>{lead.phone}</span>
+                  <span>{displayedLead.phone}</span>
                 </div>
               )}
-              {lead.company && (
+              {displayedLead.company && (
                 <div className="flex items-center gap-3 text-sm">
                   <Building className="h-4 w-4 text-muted-foreground" />
-                  <span>{lead.company}</span>
+                  <span>{displayedLead.company}</span>
                 </div>
               )}
               <div className="flex items-center gap-3 text-sm">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span>Created {format(new Date(lead.createdAt), "MMM d, yyyy")}</span>
+                <span>Created {format(new Date(displayedLead.createdAt), "MMM d, yyyy")}</span>
               </div>
             </div>
           </div>
 
-          {(lead.aiPrediction || lead.aiInsights || lead.aiRecommendedAction) && (
+          {(displayedLead.aiPrediction || displayedLead.aiInsights || displayedLead.aiRecommendedAction) && (
             <>
               <Separator />
               <Card className="bg-gradient-to-br from-primary/5 to-secondary/5 border-primary/20">
@@ -160,25 +168,25 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {lead.aiPrediction && (
+                  {displayedLead.aiPrediction && (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <TrendingUp className="h-4 w-4 text-success" />
                         <span className="text-sm font-medium">Prediction</span>
                       </div>
-                      <p className="text-sm text-muted-foreground" data-testid="text-ai-prediction">{lead.aiPrediction}</p>
+                      <p className="text-sm text-muted-foreground" data-testid="text-ai-prediction">{displayedLead.aiPrediction}</p>
                     </div>
                   )}
-                  {lead.aiInsights && (
+                  {displayedLead.aiInsights && (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <Sparkles className="h-4 w-4 text-secondary" />
                         <span className="text-sm font-medium">Analysis</span>
                       </div>
-                      <p className="text-sm text-muted-foreground" data-testid="text-ai-insights">{lead.aiInsights}</p>
+                      <p className="text-sm text-muted-foreground" data-testid="text-ai-insights">{displayedLead.aiInsights}</p>
                     </div>
                   )}
-                  {lead.aiRecommendedAction && (
+                  {displayedLead.aiRecommendedAction && (
                     <div className="rounded-md bg-primary/5 border border-primary/10 p-3">
                       <div className="flex items-center gap-2 mb-1">
                         <Lightbulb className="h-4 w-4 text-amber-500" />
@@ -187,7 +195,7 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
                       <div className="flex items-start gap-2">
                         <ArrowRight className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                         <p className="text-sm text-muted-foreground" data-testid="text-recommended-action">
-                          {lead.aiRecommendedAction}
+                          {displayedLead.aiRecommendedAction}
                         </p>
                       </div>
                     </div>
@@ -197,12 +205,12 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
             </>
           )}
 
-          {lead.notes && (
+          {displayedLead.notes && (
             <>
               <Separator />
               <div>
                 <h3 className="font-semibold mb-2">Notes</h3>
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{lead.notes}</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{displayedLead.notes}</p>
               </div>
             </>
           )}

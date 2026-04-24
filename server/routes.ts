@@ -231,9 +231,15 @@ export async function registerRoutes(
   // AI Scoring route
   app.post("/api/leads/:id/score", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
+      const userId = (req as any).userId;
       const lead = await storage.getLead(req.params.id);
       if (!lead) {
         return res.status(404).json({ message: "Lead not found" });
+      }
+
+      // Verify the lead belongs to the authenticated user
+      if (lead.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
       }
 
       const result = await scoreLead(lead);
