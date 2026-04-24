@@ -111,6 +111,14 @@ Preferred communication style: Simple, everyday language.
 - **AdminProtectedRoute**: Component that redirects non-admin users to dashboard
 - **Database Table**: leadRequests stores user submissions with priority, status, and admin notes
 
+### AI Lead Scoring & Dashboard Analytics (April 2026)
+- **Enhanced AI Scoring**: POST /api/leads/:id/score now returns and stores score (0-100), category (Hot/Warm/Cold), prediction, insights, and recommended action
+- **New Schema Columns**: `leads` table has `ai_category` and `ai_recommended_action` columns
+- **Dashboard Stats API**: GET /api/dashboard/stats returns totalLeads, hotLeads, avgScore, conversionRate, statusCounts (per-status breakdown), dailyTrend (last 7 days)
+- **Dashboard Charts**: Line chart for daily lead volume (7-day trend), horizontal bar chart for leads by status (Recharts)
+- **Lead Details UI**: Shows Hot/Warm/Cold category badge and recommended action card in both LeadDetailsSheet and lead-management inline sheet
+- **AI Model**: Updated to gpt-4o-mini for scoring
+
 ### Design System
 - Primary: #0066FF (blue)
 - Secondary: #6C5CE7 (purple)

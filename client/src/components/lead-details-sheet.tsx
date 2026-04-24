@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Sparkles, Mail, Phone, Building, Calendar, Brain, TrendingUp } from "lucide-react";
+import { Sparkles, Mail, Phone, Building, Calendar, Brain, TrendingUp, Lightbulb, ArrowRight } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -33,6 +33,12 @@ const statusColors: Record<string, string> = {
   lost: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
+const categoryColors: Record<string, string> = {
+  Hot: "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400",
+  Warm: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400",
+  Cold: "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-400",
+};
+
 export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
   const { toast } = useToast();
 
@@ -45,9 +51,12 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
       if (!response.ok) throw new Error("Failed to score lead");
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (updatedLead: Lead) => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
-      toast({ title: "AI Scoring Complete", description: "Lead has been analyzed" });
+      toast({
+        title: "AI Scoring Complete",
+        description: `Lead scored ${updatedLead.aiScore}/100 — categorized as ${updatedLead.aiCategory}`,
+      });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to score lead", variant: "destructive" });
@@ -77,8 +86,17 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
             </Avatar>
             <div className="flex-1">
               <SheetTitle className="text-xl">{lead.name}</SheetTitle>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <Badge className={statusColors[lead.status]}>{lead.status}</Badge>
+                {lead.aiCategory && (
+                  <Badge
+                    variant="outline"
+                    className={categoryColors[lead.aiCategory] || ""}
+                    data-testid="badge-ai-category"
+                  >
+                    {lead.aiCategory}
+                  </Badge>
+                )}
                 <span className="text-sm text-muted-foreground capitalize">{lead.source}</span>
               </div>
             </div>
@@ -97,7 +115,7 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
               data-testid="button-ai-score"
             >
               <Sparkles className="h-4 w-4 mr-2" />
-              {scoreMutation.isPending ? "Analyzing..." : "Run AI Analysis"}
+              {scoreMutation.isPending ? "Analyzing..." : "Score with AI"}
             </Button>
           </div>
 
@@ -131,7 +149,7 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
             </div>
           </div>
 
-          {(lead.aiPrediction || lead.aiInsights) && (
+          {(lead.aiPrediction || lead.aiInsights || lead.aiRecommendedAction) && (
             <>
               <Separator />
               <Card className="bg-gradient-to-br from-primary/5 to-secondary/5 border-primary/20">
@@ -148,7 +166,7 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
                         <TrendingUp className="h-4 w-4 text-success" />
                         <span className="text-sm font-medium">Prediction</span>
                       </div>
-                      <p className="text-sm text-muted-foreground">{lead.aiPrediction}</p>
+                      <p className="text-sm text-muted-foreground" data-testid="text-ai-prediction">{lead.aiPrediction}</p>
                     </div>
                   )}
                   {lead.aiInsights && (
@@ -157,7 +175,21 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
                         <Sparkles className="h-4 w-4 text-secondary" />
                         <span className="text-sm font-medium">Analysis</span>
                       </div>
-                      <p className="text-sm text-muted-foreground">{lead.aiInsights}</p>
+                      <p className="text-sm text-muted-foreground" data-testid="text-ai-insights">{lead.aiInsights}</p>
+                    </div>
+                  )}
+                  {lead.aiRecommendedAction && (
+                    <div className="rounded-md bg-primary/5 border border-primary/10 p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Lightbulb className="h-4 w-4 text-amber-500" />
+                        <span className="text-sm font-medium">Recommended Action</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <ArrowRight className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                        <p className="text-sm text-muted-foreground" data-testid="text-recommended-action">
+                          {lead.aiRecommendedAction}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </CardContent>

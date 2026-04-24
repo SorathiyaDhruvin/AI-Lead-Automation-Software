@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { usersLegacy, leads, segments, activities, leadRequests } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, gte, and } from "drizzle-orm";
 import type { InsertUserLegacy, UserLegacy, InsertLead, Lead, InsertSegment, Segment, InsertActivity, Activity, InsertLeadRequest, LeadRequest } from "@shared/schema";
 
 export interface IStorage {
@@ -16,7 +16,8 @@ export interface IStorage {
   createLead(lead: InsertLead): Promise<Lead>;
   updateLead(id: string, updates: Partial<Lead>): Promise<Lead | undefined>;
   deleteLead(id: string): Promise<void>;
-  getLeadStats(userId: string): Promise<{ total: number; hot: number; avgScore: number }>;
+  getLeadStats(userId: string): Promise<{ total: number; hot: number; avgScore: number; statusCounts: Record<string, number> }>;
+  getDailyLeadStats(userId: string, days: number): Promise<{ date: string; count: number }[]>;
 
   // Segment methods
   getSegment(id: string): Promise<Segment | undefined>;
@@ -97,7 +98,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(leads).where(eq(leads.id, id));
   }
 
-  async getLeadStats(userId: string): Promise<{ total: number; hot: number; avgScore: number }> {
+  async getLeadStats(userId: string): Promise<{ total: number; hot: number; avgScore: number; statusCounts: Record<string, number> }> {
     const userLeads = await db.select().from(leads).where(eq(leads.userId, userId));
     const total = userLeads.length;
     const scoredLeads = userLeads.filter((l) => l.aiScore !== null);
@@ -105,7 +106,39 @@ export class DatabaseStorage implements IStorage {
     const avgScore = scoredLeads.length > 0
       ? Math.round(scoredLeads.reduce((acc, l) => acc + (l.aiScore || 0), 0) / scoredLeads.length)
       : 0;
-    return { total, hot, avgScore };
+    const statusCounts: Record<string, number> = {};
+    for (const lead of userLeads) {
+      statusCounts[lead.status] = (statusCounts[lead.status] || 0) + 1;
+    }
+    return { total, hot, avgScore, statusCounts };
+  }
+
+  async getDailyLeadStats(userId: string, days: number): Promise<{ date: string; count: number }[]> {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days + 1);
+    cutoff.setHours(0, 0, 0, 0);
+
+    const userLeads = await db
+      .select()
+      .from(leads)
+      .where(and(eq(leads.userId, userId), gte(leads.createdAt, cutoff)));
+
+    const countMap: Record<string, number> = {};
+    for (let i = 0; i < days; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - (days - 1 - i));
+      const key = d.toISOString().slice(0, 10);
+      countMap[key] = 0;
+    }
+
+    for (const lead of userLeads) {
+      const key = new Date(lead.createdAt).toISOString().slice(0, 10);
+      if (key in countMap) {
+        countMap[key]++;
+      }
+    }
+
+    return Object.entries(countMap).map(([date, count]) => ({ date, count }));
   }
 
   // Segment methods

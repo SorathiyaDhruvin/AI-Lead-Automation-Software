@@ -465,9 +465,9 @@ export default function LeadManagementPage() {
                   <Calendar className="h-4 w-4 mr-2" />
                   Meeting
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => scoreMutation.mutate(detailLead.id)} data-testid="button-detail-score">
+                <Button size="sm" variant="outline" onClick={() => scoreMutation.mutate(detailLead.id)} data-testid="button-ai-score">
                   <Sparkles className="h-4 w-4 mr-2" />
-                  Score
+                  Score with AI
                 </Button>
               </div>
 
@@ -539,13 +539,36 @@ export default function LeadManagementPage() {
                             <Sparkles className="h-4 w-4 text-primary" />
                             <span className="font-medium">AI Score</span>
                           </div>
-                          <Badge className={getScoreColor(detailLead.aiScore)}>{detailLead.aiScore}/100</Badge>
+                          <div className="flex items-center gap-2">
+                            {detailLead.aiCategory && (
+                              <Badge
+                                variant="outline"
+                                className={
+                                  detailLead.aiCategory === "Hot"
+                                    ? "bg-red-100 text-red-700 border-red-200"
+                                    : detailLead.aiCategory === "Warm"
+                                    ? "bg-amber-100 text-amber-700 border-amber-200"
+                                    : "bg-sky-100 text-sky-700 border-sky-200"
+                                }
+                                data-testid="badge-ai-category"
+                              >
+                                {detailLead.aiCategory}
+                              </Badge>
+                            )}
+                            <Badge className={getScoreColor(detailLead.aiScore)}>{detailLead.aiScore}/100</Badge>
+                          </div>
                         </div>
                         {detailLead.aiPrediction && (
-                          <p className="text-sm text-muted-foreground mb-2">{detailLead.aiPrediction}</p>
+                          <p className="text-sm text-muted-foreground mb-2" data-testid="text-ai-prediction">{detailLead.aiPrediction}</p>
                         )}
                         {detailLead.aiInsights && (
-                          <p className="text-xs text-muted-foreground">{detailLead.aiInsights}</p>
+                          <p className="text-xs text-muted-foreground mb-2" data-testid="text-ai-insights">{detailLead.aiInsights}</p>
+                        )}
+                        {detailLead.aiRecommendedAction && (
+                          <div className="mt-2 p-2 rounded-md bg-primary/5 border border-primary/10">
+                            <p className="text-xs font-medium text-primary mb-1">Recommended Action</p>
+                            <p className="text-xs text-muted-foreground" data-testid="text-recommended-action">{detailLead.aiRecommendedAction}</p>
+                          </div>
                         )}
                       </CardContent>
                     </Card>

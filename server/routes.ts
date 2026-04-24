@@ -137,16 +137,26 @@ export async function registerRoutes(
   app.get("/api/dashboard/stats", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
-      const stats = await storage.getLeadStats(userId);
-      const segments = await storage.getSegmentsByUser(userId);
+      const [stats, segments, dailyTrend] = await Promise.all([
+        storage.getLeadStats(userId),
+        storage.getSegmentsByUser(userId),
+        storage.getDailyLeadStats(userId, 7),
+      ]);
       
+      const conversionRate = stats.total > 0
+        ? Math.round(((stats.statusCounts.won || 0) / stats.total) * 100)
+        : 0;
+
       res.json({
         totalLeads: stats.total,
         hotLeads: stats.hot,
         segments: segments.length,
         avgScore: stats.avgScore,
-        leadsTrend: 8,
-        scoreTrend: 5,
+        conversionRate,
+        statusCounts: stats.statusCounts,
+        dailyTrend,
+        leadsTrend: 0,
+        scoreTrend: 0,
       });
     } catch (error) {
       console.error("Get stats error:", error);
@@ -230,8 +240,10 @@ export async function registerRoutes(
       
       const updatedLead = await storage.updateLead(lead.id, {
         aiScore: result.score,
+        aiCategory: result.category,
         aiPrediction: result.prediction,
         aiInsights: result.insights,
+        aiRecommendedAction: result.recommendedAction,
       });
 
       res.json(updatedLead);

@@ -2,8 +2,10 @@ import type { Lead } from "@shared/schema";
 
 interface ScoreResult {
   score: number;
+  category: string;
   prediction: string;
   insights: string;
+  recommendedAction: string;
 }
 
 interface SegmentResult {
@@ -52,19 +54,30 @@ function calculateFallbackScore(lead: Lead): ScoreResult {
 
   const score = Math.min(100, Math.max(0, baseScore + hasCompany + hasPhone + hasNotes + sourceBonus + statusBonus));
 
-  let prediction = "Based on available information, this lead shows ";
+  let category: string;
+  let prediction: string;
+  let recommendedAction: string;
+
   if (score >= 70) {
-    prediction += "strong potential for conversion.";
-  } else if (score >= 50) {
-    prediction += "moderate potential with room for nurturing.";
+    category = "Hot";
+    prediction = "Based on available information, this lead shows strong potential for conversion.";
+    recommendedAction = "Schedule a discovery call within 24 hours and prepare a tailored proposal.";
+  } else if (score >= 40) {
+    category = "Warm";
+    prediction = "Based on available information, this lead shows moderate potential with room for nurturing.";
+    recommendedAction = "Send a personalized follow-up email with relevant case studies and check in next week.";
   } else {
-    prediction += "early-stage interest requiring further engagement.";
+    category = "Cold";
+    prediction = "Based on available information, this lead shows early-stage interest requiring further engagement.";
+    recommendedAction = "Add to nurturing sequence. Share educational content and re-evaluate in 30 days.";
   }
 
   return {
     score,
+    category,
     prediction,
     insights: "Score calculated using lead attributes. Enable AI integration for deeper insights.",
+    recommendedAction,
   };
 }
 
@@ -77,8 +90,10 @@ export async function scoreLead(lead: Lead): Promise<ScoreResult> {
 
   const prompt = `You are an AI lead scoring expert. Analyze the following lead and provide:
 1. A score from 0-100 (higher = more likely to convert)
-2. A brief prediction about conversion likelihood
-3. Key insights about this lead
+2. A category: exactly one of "Hot", "Warm", or "Cold"
+3. A brief prediction about conversion likelihood
+4. Key insights about this lead (2-3 sentences)
+5. A specific recommended next action for the sales team
 
 Lead Information:
 - Name: ${lead.name}
@@ -89,16 +104,20 @@ Lead Information:
 - Current Status: ${lead.status}
 - Notes: ${lead.notes || "None"}
 
+Scoring guidance: Hot = score >= 70, Warm = score 40-69, Cold = score < 40
+
 Respond in JSON format:
 {
   "score": <number 0-100>,
+  "category": "Hot" | "Warm" | "Cold",
   "prediction": "<one sentence prediction>",
-  "insights": "<2-3 key insights about this lead>"
+  "insights": "<2-3 key insights about this lead>",
+  "recommendedAction": "<specific actionable next step for the sales team>"
 }`;
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 500,
@@ -106,11 +125,19 @@ Respond in JSON format:
 
     const content = response.choices[0]?.message?.content || "{}";
     const result = JSON.parse(content);
+    const score = Math.min(100, Math.max(0, result.score || 50));
+
+    let category = result.category;
+    if (!["Hot", "Warm", "Cold"].includes(category)) {
+      category = score >= 70 ? "Hot" : score >= 40 ? "Warm" : "Cold";
+    }
 
     return {
-      score: Math.min(100, Math.max(0, result.score || 50)),
+      score,
+      category,
       prediction: result.prediction || "Unable to make prediction",
       insights: result.insights || "No insights available",
+      recommendedAction: result.recommendedAction || "Follow up with the lead to understand their needs.",
     };
   } catch (error) {
     console.error("AI scoring error:", error);
