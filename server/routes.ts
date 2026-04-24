@@ -3,9 +3,10 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { generateToken, hashPassword, comparePassword, authMiddleware, adminMiddleware } from "./auth";
 import { scoreLead, segmentLeads } from "./ai-service";
-import { registerSchema, loginSchema, insertLeadSchema, insertSegmentSchema, insertLeadNoteSchema, insertLeadRequestSchema, updateLeadRequestSchema } from "@shared/schema";
+import { registerSchema, loginSchema, insertLeadSchema, insertSegmentSchema, insertLeadNoteSchema, insertLeadRequestSchema, updateLeadRequestSchema, insertAutomationRuleSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupGoogleOAuth } from "./google-oauth";
+import { sendEmail, buildWelcomeEmail, buildFollowUpEmail } from "./email-service";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -217,6 +218,10 @@ export async function registerRoutes(
         type: "lead_created",
         description: `Lead created from ${lead.source} source`,
       });
+      // Send welcome email (fire-and-forget, never block response)
+      sendEmail(lead.email, "Welcome to LeadFlow!", buildWelcomeEmail(lead.name)).catch((err) =>
+        console.error("Welcome email error:", err)
+      );
       res.status(201).json(lead);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -350,6 +355,33 @@ export async function registerRoutes(
     }
   });
 
+  // Manual email endpoint
+  app.post("/api/leads/:id/send-email", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const lead = await storage.getLead(req.params.id);
+      if (!lead) return res.status(404).json({ message: "Lead not found" });
+      if (lead.userId !== userId) return res.status(403).json({ message: "Access denied" });
+
+      const message = (req.body.message as string) || "We wanted to follow up and see if you have any questions.";
+      const subject = (req.body.subject as string) || "Following up — LeadFlow";
+
+      await sendEmail(lead.email, subject, buildFollowUpEmail(lead.name, message));
+
+      await storage.createActivity({
+        leadId: lead.id,
+        userId,
+        type: "email",
+        description: `Follow-up email sent: "${subject}"`,
+      });
+
+      res.json({ message: "Email sent successfully" });
+    } catch (error) {
+      console.error("Send email error:", error);
+      res.status(500).json({ message: "Failed to send email" });
+    }
+  });
+
   // Lead activity route
   app.get("/api/leads/:id/activity", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
@@ -362,6 +394,55 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Get activity error:", error);
       res.status(500).json({ message: "Failed to get activity" });
+    }
+  });
+
+  // Automation rules routes
+  app.get("/api/automation/rules", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const rules = await storage.getAutomationRulesByUser(userId);
+      res.json(rules);
+    } catch (error) {
+      console.error("Get automation rules error:", error);
+      res.status(500).json({ message: "Failed to get automation rules" });
+    }
+  });
+
+  app.post("/api/automation/rules", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const data = insertAutomationRuleSchema.parse({ ...req.body, userId });
+      const rule = await storage.createAutomationRule(data);
+      res.status(201).json(rule);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Create automation rule error:", error);
+      res.status(500).json({ message: "Failed to create automation rule" });
+    }
+  });
+
+  app.delete("/api/automation/rules/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteAutomationRule(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete automation rule error:", error);
+      res.status(500).json({ message: "Failed to delete automation rule" });
+    }
+  });
+
+  app.patch("/api/automation/rules/:id/toggle", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
+    try {
+      const { isActive } = req.body;
+      const rule = await storage.toggleAutomationRule(req.params.id, Boolean(isActive));
+      if (!rule) return res.status(404).json({ message: "Rule not found" });
+      res.json(rule);
+    } catch (error) {
+      console.error("Toggle automation rule error:", error);
+      res.status(500).json({ message: "Failed to toggle automation rule" });
     }
   });
 

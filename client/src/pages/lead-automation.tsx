@@ -26,6 +26,7 @@ import {
   GitBranch,
   Timer,
   Filter,
+  ListChecks,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -56,8 +57,8 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthHeaders } from "@/lib/auth";
-import { queryClient } from "@/lib/queryClient";
-import type { Lead } from "@shared/schema";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import type { Lead, AutomationRule } from "@shared/schema";
 
 interface WorkflowStep {
   id: string;
@@ -195,20 +196,82 @@ const mockExecutions: ExecutionLog[] = [
 export default function LeadAutomationPage() {
   const { toast } = useToast();
   const [workflows, setWorkflows] = useState<Workflow[]>(defaultWorkflows);
-  const [activeTab, setActiveTab] = useState("workflows");
+  const [activeTab, setActiveTab] = useState("rules");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [newWorkflowName, setNewWorkflowName] = useState("");
   const [newWorkflowTrigger, setNewWorkflowTrigger] = useState("");
 
+  // Rule creation form state
+  const [isRuleFormOpen, setIsRuleFormOpen] = useState(false);
+  const [ruleName, setRuleName] = useState("");
+  const [ruleTriggerType, setRuleTriggerType] = useState<string>("");
+  const [ruleTriggerValue, setRuleTriggerValue] = useState<string>("");
+  const [ruleActionType, setRuleActionType] = useState<string>("");
+  const [ruleActionValue, setRuleActionValue] = useState<string>("");
+
   const { data: leads } = useQuery<Lead[]>({
     queryKey: ["/api/leads"],
     queryFn: async () => {
-      const response = await fetch("/api/leads", {
-        headers: getAuthHeaders(),
-      });
+      const response = await fetch("/api/leads", { headers: getAuthHeaders() });
       if (!response.ok) throw new Error("Failed to fetch leads");
       return response.json();
+    },
+  });
+
+  const { data: automationRules = [], isLoading: rulesLoading } = useQuery<AutomationRule[]>({
+    queryKey: ["/api/automation/rules"],
+    queryFn: async () => {
+      const response = await fetch("/api/automation/rules", { headers: getAuthHeaders() });
+      if (!response.ok) throw new Error("Failed to fetch rules");
+      return response.json();
+    },
+  });
+
+  const createRuleMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/automation/rules", {
+        name: ruleName,
+        triggerType: ruleTriggerType,
+        triggerValue: parseInt(ruleTriggerValue),
+        actionType: ruleActionType,
+        actionValue: ruleActionValue,
+        isActive: true,
+      }, getAuthHeaders());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/automation/rules"] });
+      setIsRuleFormOpen(false);
+      setRuleName("");
+      setRuleTriggerType("");
+      setRuleTriggerValue("");
+      setRuleActionType("");
+      setRuleActionValue("");
+      toast({ title: "Rule Created", description: "Automation rule is now active" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create rule", variant: "destructive" });
+    },
+  });
+
+  const deleteRuleMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/automation/rules/${id}`, undefined, getAuthHeaders());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/automation/rules"] });
+      toast({ title: "Rule Deleted", description: "Automation rule removed" });
+    },
+  });
+
+  const toggleRuleMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/automation/rules/${id}/toggle`, { isActive }, getAuthHeaders());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/automation/rules"] });
     },
   });
 
@@ -410,6 +473,10 @@ export default function LeadAutomationPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
+          <TabsTrigger value="rules" data-testid="tab-rules">
+            <ListChecks className="h-4 w-4 mr-2" />
+            Rules
+          </TabsTrigger>
           <TabsTrigger value="workflows" data-testid="tab-workflows">
             <Workflow className="h-4 w-4 mr-2" />
             Workflows
@@ -423,6 +490,100 @@ export default function LeadAutomationPage() {
             Templates
           </TabsTrigger>
         </TabsList>
+
+        {/* Rules Tab — real DB-backed automation rules */}
+        <TabsContent value="rules" className="space-y-4 mt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-foreground">Automation Rules</h2>
+              <p className="text-sm text-muted-foreground">
+                Rules run hourly. Actions fire when conditions are met.
+              </p>
+            </div>
+            <Button onClick={() => setIsRuleFormOpen(true)} data-testid="button-create-rule">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Rule
+            </Button>
+          </div>
+
+          {rulesLoading ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i}><CardContent className="p-4 h-20 animate-pulse bg-muted/40" /></Card>
+              ))}
+            </div>
+          ) : automationRules.length > 0 ? (
+            <div className="space-y-3">
+              {automationRules.map((rule) => (
+                <Card key={rule.id} className="hover-elevate" data-testid={`card-rule-${rule.id}`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium">{rule.name}</span>
+                          <Badge variant={rule.isActive ? "default" : "secondary"}>
+                            {rule.isActive ? "Active" : "Paused"}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
+                          <Badge variant="outline" className="text-xs gap-1">
+                            <Zap className="h-3 w-3" />
+                            {rule.triggerType === "score_threshold"
+                              ? `Score ≥ ${rule.triggerValue}`
+                              : `No contact ${rule.triggerValue}h`}
+                          </Badge>
+                          <ArrowRight className="h-3 w-3" />
+                          <Badge variant="outline" className="text-xs gap-1">
+                            {rule.actionType === "send_email" ? (
+                              <Mail className="h-3 w-3" />
+                            ) : (
+                              <Activity className="h-3 w-3" />
+                            )}
+                            {rule.actionType === "send_email"
+                              ? `Send email: "${rule.actionValue}"`
+                              : `Set status: ${rule.actionValue}`}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          checked={rule.isActive}
+                          onCheckedChange={(checked) =>
+                            toggleRuleMutation.mutate({ id: rule.id, isActive: checked })
+                          }
+                          data-testid={`switch-rule-${rule.id}`}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => deleteRuleMutation.mutate(rule.id)}
+                          data-testid={`button-delete-rule-${rule.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="py-12 flex flex-col items-center gap-3 text-muted-foreground">
+                <ListChecks className="h-10 w-10 opacity-30" />
+                <p className="font-medium">No rules yet</p>
+                <p className="text-sm text-center">
+                  Create your first rule to automate lead actions based on score or inactivity.
+                </p>
+                <Button onClick={() => setIsRuleFormOpen(true)} variant="outline">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Rule
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
         <TabsContent value="workflows" className="space-y-4 mt-4">
           {workflows.map((workflow) => (
@@ -642,6 +803,113 @@ export default function LeadAutomationPage() {
               </Button>
               <Button onClick={createWorkflow} data-testid="button-submit-workflow">
                 Create Workflow
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Rule Dialog */}
+      <Dialog open={isRuleFormOpen} onOpenChange={setIsRuleFormOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Automation Rule</DialogTitle>
+            <DialogDescription>
+              Define a trigger condition and the action to take when it fires.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Rule Name</label>
+              <Input
+                placeholder="e.g. Hot lead escalation"
+                value={ruleName}
+                onChange={(e) => setRuleName(e.target.value)}
+                data-testid="input-rule-name"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium">Trigger Type</label>
+                <Select value={ruleTriggerType} onValueChange={setRuleTriggerType}>
+                  <SelectTrigger data-testid="select-trigger-type">
+                    <SelectValue placeholder="Select trigger" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="score_threshold">Score Threshold</SelectItem>
+                    <SelectItem value="no_contact_hours">No Contact (hours)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">
+                  {ruleTriggerType === "score_threshold" ? "Min Score" : "Hours"}
+                </label>
+                <Input
+                  type="number"
+                  placeholder={ruleTriggerType === "score_threshold" ? "e.g. 80" : "e.g. 24"}
+                  value={ruleTriggerValue}
+                  onChange={(e) => setRuleTriggerValue(e.target.value)}
+                  data-testid="input-trigger-value"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium">Action Type</label>
+                <Select value={ruleActionType} onValueChange={setRuleActionType}>
+                  <SelectTrigger data-testid="select-action-type">
+                    <SelectValue placeholder="Select action" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="send_email">Send Email</SelectItem>
+                    <SelectItem value="set_priority">Set Status</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">
+                  {ruleActionType === "send_email" ? "Email Subject" : "New Status"}
+                </label>
+                {ruleActionType === "set_priority" ? (
+                  <Select value={ruleActionValue} onValueChange={setRuleActionValue}>
+                    <SelectTrigger data-testid="select-action-value-status">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="contacted">contacted</SelectItem>
+                      <SelectItem value="qualified">qualified</SelectItem>
+                      <SelectItem value="proposal">proposal</SelectItem>
+                      <SelectItem value="negotiation">negotiation</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder="e.g. Following up on your interest"
+                    value={ruleActionValue}
+                    onChange={(e) => setRuleActionValue(e.target.value)}
+                    data-testid="input-action-value"
+                  />
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setIsRuleFormOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => createRuleMutation.mutate()}
+                disabled={
+                  !ruleName.trim() ||
+                  !ruleTriggerType ||
+                  !ruleTriggerValue ||
+                  !ruleActionType ||
+                  !ruleActionValue.trim() ||
+                  createRuleMutation.isPending
+                }
+                data-testid="button-submit-rule"
+              >
+                {createRuleMutation.isPending ? "Creating..." : "Create Rule"}
               </Button>
             </div>
           </div>

@@ -54,6 +54,13 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthHeaders } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -123,6 +130,10 @@ export default function LeadManagementPage() {
   const [detailLead, setDetailLead] = useState<Lead | null>(null);
   const [newNote, setNewNote] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [emailTargetLead, setEmailTargetLead] = useState<Lead | null>(null);
+  const [emailSubject, setEmailSubject] = useState("Following up — LeadFlow");
+  const [emailMessage, setEmailMessage] = useState("");
 
   // Build query params for server-side filtering
   const buildLeadQueryParams = () => {
@@ -210,6 +221,24 @@ export default function LeadManagementPage() {
     },
   });
 
+  const sendEmailMutation = useMutation({
+    mutationFn: async ({ id, subject, message }: { id: string; subject: string; message: string }) => {
+      const res = await apiRequest("POST", `/api/leads/${id}/send-email`, { subject, message }, getAuthHeaders());
+      return res.json();
+    },
+    onSuccess: () => {
+      if (emailTargetLead) {
+        queryClient.invalidateQueries({ queryKey: ["/api/leads", emailTargetLead.id, "activity"] });
+      }
+      setIsEmailDialogOpen(false);
+      setEmailMessage("");
+      toast({ title: "Email Sent", description: `Follow-up sent to ${emailTargetLead?.email}` });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to send email", variant: "destructive" });
+    },
+  });
+
   const addNoteMutation = useMutation({
     mutationFn: async ({ id, text }: { id: string; text: string }) => {
       const response = await fetch(`/api/leads/${id}/notes`, {
@@ -270,7 +299,10 @@ export default function LeadManagementPage() {
         }
         break;
       case "email":
-        window.open(`mailto:${lead.email}`);
+        setEmailTargetLead(lead);
+        setEmailSubject("Following up — LeadFlow");
+        setEmailMessage("");
+        setIsEmailDialogOpen(true);
         break;
       case "meeting":
         toast({ title: "Schedule Meeting", description: "Meeting scheduler coming soon" });
@@ -741,6 +773,57 @@ export default function LeadManagementPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Send Email Dialog */}
+      <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Follow-up Email</DialogTitle>
+            <DialogDescription>
+              Send a follow-up email to {emailTargetLead?.name} ({emailTargetLead?.email})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Subject</label>
+              <Input
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                placeholder="Email subject"
+                data-testid="input-email-subject"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Message</label>
+              <Textarea
+                value={emailMessage}
+                onChange={(e) => setEmailMessage(e.target.value)}
+                placeholder="Enter your message..."
+                rows={4}
+                className="resize-none"
+                data-testid="textarea-email-message"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setIsEmailDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => emailTargetLead && sendEmailMutation.mutate({
+                  id: emailTargetLead.id,
+                  subject: emailSubject,
+                  message: emailMessage,
+                })}
+                disabled={!emailSubject.trim() || !emailMessage.trim() || sendEmailMutation.isPending}
+                data-testid="button-send-email-submit"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                {sendEmailMutation.isPending ? "Sending..." : "Send Email"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

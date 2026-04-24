@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { usersLegacy, leads, segments, activities, leadNotes, leadRequests } from "@shared/schema";
+import { usersLegacy, leads, segments, activities, leadNotes, leadRequests, automationRules } from "@shared/schema";
 import { eq, desc, gte, lte, ilike, and, or, type SQL } from "drizzle-orm";
-import type { InsertUserLegacy, UserLegacy, InsertLead, Lead, InsertSegment, Segment, InsertActivity, Activity, InsertLeadNote, LeadNote, InsertLeadRequest, LeadRequest } from "@shared/schema";
+import type { InsertUserLegacy, UserLegacy, InsertLead, Lead, InsertSegment, Segment, InsertActivity, Activity, InsertLeadNote, LeadNote, InsertLeadRequest, LeadRequest, InsertAutomationRule, AutomationRule } from "@shared/schema";
 
 export interface LeadFilters {
   search?: string;
@@ -50,6 +50,13 @@ export interface IStorage {
   getAllLeadRequests(): Promise<LeadRequest[]>;
   createLeadRequest(request: InsertLeadRequest): Promise<LeadRequest>;
   updateLeadRequest(id: string, updates: Partial<LeadRequest>): Promise<LeadRequest | undefined>;
+
+  // Automation rule methods
+  getAutomationRulesByUser(userId: string): Promise<AutomationRule[]>;
+  getActiveAutomationRules(): Promise<AutomationRule[]>;
+  createAutomationRule(rule: InsertAutomationRule): Promise<AutomationRule>;
+  deleteAutomationRule(id: string): Promise<void>;
+  toggleAutomationRule(id: string, isActive: boolean): Promise<AutomationRule | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -283,6 +290,40 @@ export class DatabaseStorage implements IStorage {
       .where(eq(leadRequests.id, id))
       .returning();
     return request;
+  }
+
+  // Automation rule methods
+  async getAutomationRulesByUser(userId: string): Promise<AutomationRule[]> {
+    return db
+      .select()
+      .from(automationRules)
+      .where(eq(automationRules.userId, userId))
+      .orderBy(desc(automationRules.createdAt));
+  }
+
+  async getActiveAutomationRules(): Promise<AutomationRule[]> {
+    return db
+      .select()
+      .from(automationRules)
+      .where(eq(automationRules.isActive, true));
+  }
+
+  async createAutomationRule(rule: InsertAutomationRule): Promise<AutomationRule> {
+    const [created] = await db.insert(automationRules).values(rule).returning();
+    return created;
+  }
+
+  async deleteAutomationRule(id: string): Promise<void> {
+    await db.delete(automationRules).where(eq(automationRules.id, id));
+  }
+
+  async toggleAutomationRule(id: string, isActive: boolean): Promise<AutomationRule | undefined> {
+    const [updated] = await db
+      .update(automationRules)
+      .set({ isActive })
+      .where(eq(automationRules.id, id))
+      .returning();
+    return updated;
   }
 }
 

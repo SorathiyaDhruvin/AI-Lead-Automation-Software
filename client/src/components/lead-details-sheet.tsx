@@ -5,6 +5,14 @@ import {
   Sparkles, Mail, Phone, Building, Calendar, Brain, TrendingUp, Lightbulb, ArrowRight,
   Send, FileText, Activity, Clock, User, Star, StickyNote, type LucideIcon,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Sheet,
   SheetContent,
@@ -86,6 +94,9 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
   const [displayedLead, setDisplayedLead] = useState<Lead | null>(lead);
   const [activeTab, setActiveTab] = useState("info");
   const [newNote, setNewNote] = useState("");
+  const [isEmailOpen, setIsEmailOpen] = useState(false);
+  const [emailSubject, setEmailSubject] = useState("Following up — LeadFlow");
+  const [emailMessage, setEmailMessage] = useState("");
 
   useEffect(() => {
     setDisplayedLead(lead);
@@ -137,6 +148,27 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
     enabled: !!displayedLead && activeTab === "activity",
   });
 
+  const sendEmailMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/leads/${displayedLead!.id}/send-email`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ subject: emailSubject, message: emailMessage }),
+      });
+      if (!response.ok) throw new Error("Failed to send email");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", displayedLead?.id, "activity"] });
+      setIsEmailOpen(false);
+      setEmailMessage("");
+      toast({ title: "Email Sent", description: `Follow-up sent to ${displayedLead?.email}` });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to send email", variant: "destructive" });
+    },
+  });
+
   const addNoteMutation = useMutation({
     mutationFn: async (text: string) => {
       const response = await fetch(`/api/leads/${displayedLead!.id}/notes`, {
@@ -165,6 +197,7 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
   };
 
   return (
+    <>
     <Sheet open={!!lead} onOpenChange={() => onClose()}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
@@ -198,6 +231,14 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
             <p className="text-sm text-muted-foreground mb-1">AI Score</p>
             <ScoreBadge score={displayedLead.aiScore} size="lg" />
           </div>
+          <Button
+            variant="outline"
+            onClick={() => setIsEmailOpen(true)}
+            data-testid="button-send-email"
+          >
+            <Mail className="h-4 w-4 mr-2" />
+            Email
+          </Button>
           <Button
             onClick={() => scoreMutation.mutate()}
             disabled={scoreMutation.isPending}
@@ -379,5 +420,52 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
         </Tabs>
       </SheetContent>
     </Sheet>
+
+    <Dialog open={isEmailOpen} onOpenChange={setIsEmailOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Send Follow-up Email</DialogTitle>
+          <DialogDescription>
+            Send a follow-up email to {displayedLead.name} ({displayedLead.email})
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium">Subject</label>
+            <Input
+              value={emailSubject}
+              onChange={(e) => setEmailSubject(e.target.value)}
+              placeholder="Email subject"
+              data-testid="input-email-subject"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Message</label>
+            <Textarea
+              value={emailMessage}
+              onChange={(e) => setEmailMessage(e.target.value)}
+              placeholder="Enter your message..."
+              rows={4}
+              className="resize-none"
+              data-testid="textarea-email-message"
+            />
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setIsEmailOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => sendEmailMutation.mutate()}
+              disabled={!emailSubject.trim() || !emailMessage.trim() || sendEmailMutation.isPending}
+              data-testid="button-send-email-submit"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {sendEmailMutation.isPending ? "Sending..." : "Send Email"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

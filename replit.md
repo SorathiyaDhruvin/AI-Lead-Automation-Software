@@ -91,6 +91,17 @@ Preferred communication style: Simple, everyday language.
 - `recharts`: Data visualization for lead analytics
 - `date-fns`: Date formatting and manipulation
 
+## Recent Changes (April 2026 — Task #3)
+
+### Lead Automation Rules & Email Automation
+- **automationRules table**: `id, userId, name, triggerType (score_threshold|no_contact_hours), triggerValue (integer), actionType (set_priority|send_email), actionValue, isActive, createdAt`. db:push applied.
+- **Email Service** (`server/email-service.ts`): Nodemailer with SMTP env vars (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS). Falls back to console.log when SMTP not configured. Welcome email fired on lead creation.
+- **Cron Jobs** (`server/cron.ts`): `node-cron` hourly job evaluates active automation rules. Started via `startCronJobs()` in server/index.ts.
+- **API endpoints**: `GET/POST /api/automation/rules`, `DELETE /api/automation/rules/:id`, `PATCH /api/automation/rules/:id/toggle`, `POST /api/leads/:id/send-email`.
+- **Lead Automation page** (`client/src/pages/lead-automation.tsx`): "Rules" tab added as default tab. Full CRUD for rules: create (with Dialog form), toggle (switch), delete. Real API calls with auth headers.
+- **Email Dialog in Lead Management** (`client/src/pages/lead-management.tsx`): Email button (`button-detail-email`) now opens an in-app Dialog (not mailto). Dialog has `input-email-subject`, `textarea-email-message`, `button-send-email-submit`. Successful send shows toast + records activity.
+- **Email Dialog in Lead Details Sheet** (`client/src/components/lead-details-sheet.tsx`): Same email dialog pattern on the `button-send-email` button.
+
 ## Recent Changes (April 2026 — Task #2)
 
 ### Lead Search, Notes & Activity Timeline (April 2026)

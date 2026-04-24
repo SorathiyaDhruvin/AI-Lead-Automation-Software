@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -89,6 +89,19 @@ export const leadRequests = pgTable("lead_requests", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// Automation rules table
+export const automationRules = pgTable("automation_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  name: text("name").notNull(),
+  triggerType: text("trigger_type").notNull(), // score_threshold | no_contact_hours
+  triggerValue: integer("trigger_value").notNull(),
+  actionType: text("action_type").notNull(), // set_priority | send_email
+  actionValue: text("action_value").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // Insert schemas for legacy users (email/password auth)
 export const insertUserLegacySchema = createInsertSchema(usersLegacy).pick({
   email: true,
@@ -134,6 +147,11 @@ export const insertLeadRequestSchema = createInsertSchema(leadRequests).omit({
   reviewedAt: true,
 });
 
+export const insertAutomationRuleSchema = createInsertSchema(automationRules).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const updateLeadRequestSchema = z.object({
   status: z.enum(["pending", "approved", "rejected", "in_review"]),
   adminNotes: z.string().optional(),
@@ -165,3 +183,5 @@ export type LeadNote = typeof leadNotes.$inferSelect;
 export type InsertLeadRequest = z.infer<typeof insertLeadRequestSchema>;
 export type LeadRequest = typeof leadRequests.$inferSelect;
 export type UpdateLeadRequest = z.infer<typeof updateLeadRequestSchema>;
+export type InsertAutomationRule = z.infer<typeof insertAutomationRuleSchema>;
+export type AutomationRule = typeof automationRules.$inferSelect;
