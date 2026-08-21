@@ -2,6 +2,19 @@ const pool = require("../config/db");
 
 const userModel = {
     /**
+     * Create a new user record.
+     */
+    async create({ id, email, first_name, last_name, role = "user" }) {
+        const { rows } = await pool.query(
+            `INSERT INTO users (id, email, password, first_name, last_name, role, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+             RETURNING *`,
+            [id, email.toLowerCase(), "", first_name, last_name, role]
+        );
+        return rows[0];
+    },
+
+    /**
      * Get all users (admin use). Never returns passwords.
      */
     async getAll() {

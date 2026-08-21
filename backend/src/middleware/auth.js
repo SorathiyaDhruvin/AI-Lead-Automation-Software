@@ -45,6 +45,29 @@ const authMiddleware = async (req, res, next) => {
         req.userEmail = user.email;
         req.userRole = user.user_metadata?.role || "user";
         
+        // Ensure user exists in our local PostgreSQL database
+        try {
+            const userModel = require("../models/userModel");
+            const dbUser = await userModel.getById(user.id);
+            if (!dbUser) {
+                const fullName = user.user_metadata?.full_name || "";
+                const nameParts = fullName.split(" ");
+                const firstName = user.user_metadata?.first_name || nameParts[0] || "User";
+                const lastName = user.user_metadata?.last_name || nameParts.slice(1).join(" ") || "";
+                
+                await userModel.create({
+                    id: user.id,
+                    email: user.email,
+                    first_name: firstName,
+                    last_name: lastName,
+                    role: req.userRole
+                });
+                console.log(`[Auth Sync] Created user record for ID: ${user.id}, Email: ${user.email}`);
+            }
+        } catch (syncError) {
+            console.error("[Auth Sync] Failed to synchronize user profile:", syncError.message);
+        }
+        
         next();
     } catch (error) {
         console.error("Auth Middleware Error:", error.message);

@@ -1,5 +1,6 @@
 const aiSuggestionModel = require("../models/aiSuggestionModel");
 const activityModel = require("../models/activityModel");
+const geminiService = require("../services/geminiService");
 const { asyncHandler } = require("../middleware/errorHandler");
 
 /**
@@ -18,9 +19,6 @@ const getSuggestions = asyncHandler(async (req, res) => {
 /**
  * POST /api/ai-suggestions/:leadId
  * Generate AI suggestions for a specific lead.
- *
- * Currently returns mock/placeholder AI data.
- * Replace the scoring logic below with OpenAI or your preferred AI service.
  */
 const generateSuggestion = asyncHandler(async (req, res) => {
     const lead = await aiSuggestionModel.getLeadForScoring(req.params.leadId);
@@ -39,60 +37,42 @@ const generateSuggestion = asyncHandler(async (req, res) => {
         });
     }
 
-    // ──────────────────────────────────────────────
-    // 🤖 AI Scoring Logic (placeholder)
-    //
-    // Replace this block with a real AI service call, e.g.:
-    //   const result = await openai.chat.completions.create({ ... });
-    //
-    // The placeholder below generates deterministic mock data
-    // based on the lead's properties.
-    // ──────────────────────────────────────────────
+    try {
+        const result = await geminiService.scoreLead(lead);
 
-    const hasCompany = !!lead.company;
-    const hasPhone = !!lead.phone;
-    const baseScore = 40 + (hasCompany ? 20 : 0) + (hasPhone ? 15 : 0);
-    const score = Math.min(baseScore + Math.floor(Math.random() * 25), 100);
+        const updatedLead = await aiSuggestionModel.updateAIFields(lead.id, {
+            ai_score: result.score,
+            ai_category: result.category,
+            ai_prediction: result.prediction,
+            ai_insights: result.insights,
+            ai_recommended_action: result.recommendation,
+            ai_rating: result.rating,
+            ai_reason: result.reason,
+            ai_strengths: JSON.stringify(result.strengths),
+            ai_weaknesses: JSON.stringify(result.weaknesses),
+            ai_recommendation: result.recommendation
+        });
 
-    let category, prediction, recommendedAction;
+        // Log the scoring activity
+        await activityModel.create({
+            leadId: lead.id,
+            userId: req.userId,
+            type: "scored",
+            description: `AI score updated to ${result.score}/100 (${result.category})`,
+        });
 
-    if (score >= 70) {
-        category = "hot";
-        prediction = "High conversion probability — engage immediately";
-        recommendedAction = "Schedule a demo call within 24 hours";
-    } else if (score >= 40) {
-        category = "warm";
-        prediction = "Moderate interest — needs nurturing";
-        recommendedAction = "Send a personalized follow-up email";
-    } else {
-        category = "cold";
-        prediction = "Low engagement signals — long-term prospect";
-        recommendedAction = "Add to drip email campaign";
+        res.json({
+            success: true,
+            message: "AI suggestions generated",
+            data: updatedLead,
+        });
+    } catch (error) {
+        console.error("AI Generate Suggestion Controller Error:", error.message);
+        res.status(500).json({ 
+            success: false, 
+            message: "AI suggestion generation failed: " + error.message 
+        });
     }
-
-    const insights = `Lead from ${lead.source || "unknown"} source. ${hasCompany ? `Works at ${lead.company}.` : "No company info."} ${hasPhone ? "Phone available for outreach." : "No phone — use email."}`;
-
-    const updatedLead = await aiSuggestionModel.updateAIFields(lead.id, {
-        ai_score: score,
-        ai_category: category,
-        ai_prediction: prediction,
-        ai_insights: insights,
-        ai_recommended_action: recommendedAction,
-    });
-
-    // Log the scoring activity
-    activityModel.create({
-        leadId: lead.id,
-        userId: req.userId,
-        type: "scored",
-        description: `AI score updated to ${score}/100 (${category})`,
-    }).catch((err) => console.error("Activity log error:", err));
-
-    res.json({
-        success: true,
-        message: "AI suggestions generated",
-        data: updatedLead,
-    });
 });
 
 module.exports = { getSuggestions, generateSuggestion };

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/services/api";
 
 export default function VerifyOtp() {
   const [location, setLocation] = useLocation();
@@ -104,16 +105,9 @@ export default function VerifyOtp() {
     setIsResending(true);
     setErrorMsg(null);
     try {
-      const res = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+      await apiClient.post<{ message: string }>("/auth/forgot-password", {
+        email
       });
-      const result = await res.json();
-
-      if (!res.ok) {
-        throw new Error(result.message || "Failed to resend code");
-      }
 
       toast({
         title: "Code resent",
@@ -144,16 +138,10 @@ export default function VerifyOtp() {
     setErrorMsg(null);
     
     try {
-      const res = await fetch("/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp: otpValue }),
+      const result = await apiClient.post<{ resetToken: string }>("/auth/verify-otp", {
+        email,
+        otp: otpValue
       });
-      const result = await res.json();
-
-      if (!res.ok) {
-        throw new Error(result.message || "Invalid or expired code");
-      }
 
       toast({
         title: "Verified",

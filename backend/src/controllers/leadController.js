@@ -1,24 +1,13 @@
 const leadModel = require("../models/leadModel");
 const activityModel = require("../models/activityModel");
+const noteModel = require("../models/noteModel");
+const notificationModel = require("../models/notificationModel");
+const geminiService = require("../services/geminiService");
+const emailService = require("../services/emailService");
 const { asyncHandler } = require("../middleware/errorHandler");
-const { OpenAI } = require("openai");
-
-let _ai = null;
-function getAI() {
-    if (!_ai) {
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) return null;
-        _ai = new OpenAI({
-            apiKey,
-            baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-        });
-    }
-    return _ai;
-}
 
 /**
  * GET /api/leads
- * Get all leads for the authenticated user. Supports filters via query params.
  */
 const getLeads = asyncHandler(async (req, res) => {
     const filters = {
@@ -39,7 +28,6 @@ const getLeads = asyncHandler(async (req, res) => {
 
 /**
  * GET /api/leads/:id
- * Get a single lead by ID with ownership check.
  */
 const getLeadById = asyncHandler(async (req, res) => {
     const lead = await leadModel.getById(req.params.id);
@@ -66,7 +54,6 @@ const getLeadById = asyncHandler(async (req, res) => {
 
 /**
  * POST /api/leads
- * Create a new lead and log the creation activity.
  */
 const createLead = asyncHandler(async (req, res) => {
     const { name, email, company, phone, source, status, notes } = req.body;
@@ -89,13 +76,24 @@ const createLead = asyncHandler(async (req, res) => {
         notes,
     });
 
-    // Auto-log creation activity (fire-and-forget)
+    // Auto-log creation activity
     activityModel.create({
         leadId: lead.id,
         userId: req.userId,
         type: "lead_created",
-        description: `Lead created from ${lead.source} source`,
+        description: `Lead created from ${lead.source || "manual"} source`,
     }).catch((err) => console.error("Activity log error:", err));
+
+    // Create in-app notification
+    notificationModel.create({
+        userId: req.userId,
+        type: "lead_created",
+        message: `New lead added: ${lead.name} (${lead.email})`
+    }).catch((err) => console.error("Notification creation error:", err));
+
+    // Send welcome email (fire-and-forget)
+    emailService.sendEmail(lead.email, "Welcome to LeadFlow!", emailService.buildWelcomeEmail(lead.name))
+        .catch((err) => console.error("Welcome email send error:", err.message));
 
     res.status(201).json({
         success: true,
@@ -106,7 +104,6 @@ const createLead = asyncHandler(async (req, res) => {
 
 /**
  * PUT /api/leads/:id
- * Update a lead with ownership check. Logs status changes.
  */
 const updateLead = asyncHandler(async (req, res) => {
     const existing = await leadModel.getById(req.params.id);
@@ -127,7 +124,7 @@ const updateLead = asyncHandler(async (req, res) => {
 
     const lead = await leadModel.update(req.params.id, req.body);
 
-    // Log status change if applicable
+    // Log status change activity + notification
     if (req.body.status && req.body.status !== existing.status) {
         activityModel.create({
             leadId: lead.id,
@@ -135,6 +132,12 @@ const updateLead = asyncHandler(async (req, res) => {
             type: "status_changed",
             description: `Status changed from "${existing.status}" to "${lead.status}"`,
         }).catch((err) => console.error("Activity log error:", err));
+
+        notificationModel.create({
+            userId: req.userId,
+            type: "status_changed",
+            message: `${lead.name} moved to "${lead.status}"`
+        }).catch((err) => console.error("Notification creation error:", err));
     }
 
     res.json({
@@ -146,7 +149,6 @@ const updateLead = asyncHandler(async (req, res) => {
 
 /**
  * DELETE /api/leads/:id
- * Delete a lead with ownership check.
  */
 const deleteLead = asyncHandler(async (req, res) => {
     const existing = await leadModel.getById(req.params.id);
@@ -175,7 +177,6 @@ const deleteLead = asyncHandler(async (req, res) => {
 
 /**
  * POST /api/leads/:id/score
- * Generate an AI score for a lead using OpenAI.
  */
 const scoreLead = asyncHandler(async (req, res) => {
     const existing = await leadModel.getById(req.params.id);
@@ -188,99 +189,286 @@ const scoreLead = asyncHandler(async (req, res) => {
         return res.status(403).json({ success: false, message: "Access denied" });
     }
 
-    const ai = getAI();
-    if (!ai) {
-        return res.status(500).json({ success: false, message: "Gemini API key is not configured on the server. Set GEMINI_API_KEY in environment variables." });
-    }
-
     try {
-        const prompt = `
-        Evaluate this lead and provide a score and detailed insights based on their potential to convert.
-        Lead Data:
-        Name: ${existing.name}
-        Email: ${existing.email}
-        Company: ${existing.company || "Unknown"}
-        Phone: ${existing.phone || "Unknown"}
-        Source: ${existing.source}
-        Status: ${existing.status}
-        Notes: ${existing.notes || "None"}
-
-        Respond strictly with JSON in the following exact format:
-        {
-          "score": <integer from 0 to 100>,
-          "rating": "<one of: low, medium, high>",
-          "reason": "<short explanation of the score>",
-          "strengths": ["<strength 1>", "<strength 2>"],
-          "weaknesses": ["<weakness 1>"],
-          "recommendation": "<specific recommended action>"
-        }
-        `;
-
-        const modelConfig = process.env.AI_MODEL || "gemini-2.0-flash";
-
-        const response = await ai.chat.completions.create({
-            model: modelConfig,
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" },
-        });
-
-        if (!response.choices || !response.choices[0] || !response.choices[0].message) {
-            throw new Error("AI provider returned an empty or invalid response.");
-        }
-
-        const aiResponse = JSON.parse(response.choices[0].message.content);
-        const score = parseInt(aiResponse.score);
+        const result = await geminiService.scoreLead(existing);
         
-        if (isNaN(score) || score < 0 || score > 100) {
-            throw new Error("AI returned an invalid score: " + aiResponse.score);
-        }
-
-        const validRatings = ["low", "medium", "high"];
-        const rating = validRatings.includes(aiResponse.rating) ? aiResponse.rating : "medium";
-
+        // Map all rating, category, and insights fields to keep compatibility with UI schemas
         const updatedLead = await leadModel.update(existing.id, {
-            ai_score: score,
-            ai_rating: rating,
-            ai_reason: aiResponse.reason || "AI evaluation completed.",
-            ai_strengths: JSON.stringify(aiResponse.strengths || []),
-            ai_weaknesses: JSON.stringify(aiResponse.weaknesses || []),
-            ai_recommendation: aiResponse.recommendation || "Follow up with the lead."
+            ai_score: result.score,
+            ai_category: result.category, // Hot/Warm/Cold
+            ai_rating: result.rating, // high/medium/low
+            ai_prediction: result.prediction,
+            ai_reason: result.reason,
+            ai_insights: result.insights,
+            ai_strengths: JSON.stringify(result.strengths),
+            ai_weaknesses: JSON.stringify(result.weaknesses),
+            ai_recommended_action: result.recommendation,
+            ai_recommendation: result.recommendation
         });
 
-        activityModel.create({
+        // Log scoring activity
+        await activityModel.create({
             leadId: existing.id,
             userId: req.userId,
             type: "scored",
-            description: `AI scored lead at ${score}/100. Rating: ${rating}.`,
-        }).catch(err => console.error("Activity log error:", err));
+            description: `AI score updated to ${result.score}/100 (${result.category})`,
+        });
 
         res.json({
             success: true,
             data: updatedLead,
         });
-
     } catch (error) {
-        console.error("AI Scoring Error:", error);
-        
-        let statusCode = 500;
-        let errorMessage = "Failed to score lead. " + error.message;
-
-        if (error.status === 401) {
-            statusCode = 401;
-            errorMessage = "AI API key is invalid or missing.";
-        } else if (error.status === 429) {
-            statusCode = 429;
-            errorMessage = "AI rate limit reached.";
-        } else if (error.status === 400) {
-            statusCode = 400;
-            errorMessage = "AI request is invalid. " + error.message;
-        } else if (error.message.includes("JSON")) {
-            statusCode = 500;
-            errorMessage = "AI returned malformed JSON data.";
-        }
-
-        res.status(statusCode).json({ success: false, message: errorMessage });
+        console.error("AI Lead Scoring Controller Error:", error.message);
+        res.status(500).json({ 
+            success: false, 
+            message: "AI scoring failed: " + error.message 
+        });
     }
 });
 
-module.exports = { getLeads, getLeadById, createLead, updateLead, deleteLead, scoreLead };
+/**
+ * GET /api/leads/:id/notes
+ */
+const getNotes = asyncHandler(async (req, res) => {
+    const lead = await leadModel.getById(req.params.id);
+    if (!lead) {
+        return res.status(404).json({ success: false, message: "Lead not found" });
+    }
+    if (lead.user_id !== req.userId) {
+        return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const notes = await noteModel.getByLead(req.params.id);
+    res.json({ success: true, data: notes });
+});
+
+/**
+ * POST /api/leads/:id/notes
+ */
+const createNote = asyncHandler(async (req, res) => {
+    const lead = await leadModel.getById(req.params.id);
+    if (!lead) {
+        return res.status(404).json({ success: false, message: "Lead not found" });
+    }
+    if (lead.user_id !== req.userId) {
+        return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const { text } = req.body;
+    if (!text || typeof text !== "string" || text.trim() === "") {
+        return res.status(400).json({ success: false, message: "Note text is required" });
+    }
+
+    const note = await noteModel.create({
+        leadId: req.params.id,
+        userId: req.userId,
+        text: text.trim()
+    });
+
+    // Auto-log note activity
+    await activityModel.create({
+        leadId: req.params.id,
+        userId: req.userId,
+        type: "note_added",
+        description: text.length > 80 ? text.slice(0, 80) + "…" : text,
+    });
+
+    res.status(201).json({ success: true, data: note });
+});
+
+/**
+ * GET /api/leads/:id/activity
+ */
+const getLeadActivities = asyncHandler(async (req, res) => {
+    const lead = await leadModel.getById(req.params.id);
+    if (!lead) {
+        return res.status(404).json({ success: false, message: "Lead not found" });
+    }
+    if (lead.user_id !== req.userId) {
+        return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const activities = await activityModel.getByLead(req.params.id);
+    res.json({ success: true, data: activities });
+});
+
+/**
+ * POST /api/leads/:id/send-email
+ */
+const sendLeadEmail = asyncHandler(async (req, res) => {
+    const lead = await leadModel.getById(req.params.id);
+    if (!lead) {
+        return res.status(404).json({ success: false, message: "Lead not found" });
+    }
+    if (lead.user_id !== req.userId) {
+        return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const { subject, message } = req.body;
+    if (!subject || !message) {
+        return res.status(400).json({ success: false, message: "Subject and message are required" });
+    }
+
+    try {
+        await emailService.sendEmail(lead.email, subject, emailService.buildFollowUpEmail(lead.name, message));
+        
+        await activityModel.create({
+            leadId: lead.id,
+            userId: req.userId,
+            type: "email",
+            description: `Follow-up email sent: "${subject}"`,
+        });
+
+        res.json({ success: true, message: "Email sent successfully" });
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            message: "Email failed: " + error.message 
+        });
+    }
+});
+
+/**
+ * GET /api/leads/export
+ */
+const exportCsv = asyncHandler(async (req, res) => {
+    const filters = {
+        search: req.query.search,
+        status: req.query.status,
+        minScore: req.query.minScore ? parseInt(req.query.minScore) : undefined,
+        maxScore: req.query.maxScore ? parseInt(req.query.maxScore) : undefined,
+    };
+
+    const userLeads = await leadModel.getByUser(req.userId, filters);
+
+    const header = "name,email,company,phone,source,status,ai_score,ai_category,created_at";
+    const rows = userLeads.map((l) => [
+        `"${(l.name || "").replace(/"/g, '""')}"`,
+        `"${(l.email || "").replace(/"/g, '""')}"`,
+        `"${(l.company || "").replace(/"/g, '""')}"`,
+        `"${(l.phone || "").replace(/"/g, '""')}"`,
+        `"${(l.source || "").replace(/"/g, '""')}"`,
+        `"${(l.status || "").replace(/"/g, '""')}"`,
+        l.ai_score ?? "",
+        `"${(l.ai_category || "").replace(/"/g, '""')}"`,
+        `"${l.created_at ? new Date(l.created_at).toISOString().slice(0, 10) : ""}"`,
+    ].join(","));
+
+    const csv = [header, ...rows].join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="leads-export-${Date.now()}.csv"`);
+    res.send(csv);
+});
+
+/**
+ * POST /api/leads/import
+ */
+const importCsv = asyncHandler(async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: "No file uploaded" });
+    }
+
+    const text = req.file.buffer.toString("utf-8");
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) {
+        return res.status(400).json({ success: false, message: "CSV must have a header row and at least one data row" });
+    }
+
+    const parseRow = (line) => {
+        const result = [];
+        let current = "";
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') {
+                if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+                else { inQuotes = !inQuotes; }
+            } else if (ch === "," && !inQuotes) {
+                result.push(current.trim());
+                current = "";
+            } else {
+                current += ch;
+            }
+        }
+        result.push(current.trim());
+        return result;
+    };
+
+    const headerRow = parseRow(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, "_"));
+    const idx = (name) => headerRow.indexOf(name);
+
+    let created = 0;
+    const errors = [];
+
+    for (let i = 1; i < lines.length; i++) {
+        const row = parseRow(lines[i]);
+        const name = row[idx("name")] || "";
+        const email = row[idx("email")] || "";
+        const company = row[idx("company")] || undefined;
+        const phone = row[idx("phone")] || undefined;
+        const source = row[idx("source")] || "csv_import";
+
+        if (!name || !email) {
+            errors.push(`Row ${i + 1}: missing required name or email`);
+            continue;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            errors.push(`Row ${i + 1}: invalid email "${email}"`);
+            continue;
+        }
+
+        try {
+            const lead = await leadModel.create({
+                userId: req.userId,
+                name,
+                email,
+                company,
+                phone,
+                source,
+                status: "new"
+            });
+            await activityModel.create({
+                leadId: lead.id,
+                userId: req.userId,
+                type: "lead_created",
+                description: `Lead imported from CSV`,
+            });
+            created++;
+        } catch (err) {
+            errors.push(`Row ${i + 1}: failed to create lead for "${email}". Error: ${err.message}`);
+        }
+    }
+
+    if (created > 0) {
+        notificationModel.create({
+            userId: req.userId,
+            type: "lead_created",
+            message: `CSV import: ${created} lead${created !== 1 ? "s" : ""} imported successfully`
+        }).catch(() => {});
+    }
+
+    res.json({
+        success: true,
+        data: {
+            created,
+            failed: errors.length,
+            errors: errors.slice(0, 20)
+        }
+    });
+});
+
+module.exports = {
+    getLeads,
+    getLeadById,
+    createLead,
+    updateLead,
+    deleteLead,
+    scoreLead,
+    getNotes,
+    createNote,
+    getLeadActivities,
+    sendLeadEmail,
+    exportCsv,
+    importCsv
+};

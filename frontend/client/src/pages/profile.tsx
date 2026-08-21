@@ -110,15 +110,11 @@ export default function ProfilePage() {
   const firstName = userProfile?.first_name || "User";
   const lastName = userProfile?.last_name || "";
 
-  const { data: profileData, isLoading: isProfileLoading } = useQuery({
+  const { data: profileData, isLoading: isProfileLoading, refetch: refetchProfile } = useQuery({
     queryKey: ["/api/profile"],
     queryFn: async () => {
-      if (!user?.id) return {};
-      const { data, error } = await supabase.from("users").select().eq("id", user.id).single();
-      if (error) {
-        if (error.code === 'PGRST116') return {}; // Not found
-        throw error;
-      }
+      const data = await apiClient.get<any>("/profile");
+      if (!data) return {};
       return {
         firstName: data.first_name,
         lastName: data.last_name,
@@ -250,25 +246,15 @@ export default function ProfilePage() {
   const profileMutation = useMutation({
     mutationFn: async (data: ProfileForm) => {
       if (!user?.id) throw new Error("Not authenticated");
-
-      let emailChangedMsg = "";
-      // Handle email update in Supabase Auth if it changed
-      if (data.email && data.email !== user?.email) {
-        const { error: authError } = await supabase.auth.updateUser({ email: data.email });
-        if (authError) {
-          console.error("Auth email update error:", authError);
-          throw new Error("Failed to update authentication email: " + authError.message);
-        }
-        emailChangedMsg = " A confirmation email has been sent to your new address.";
-      }
       const { email, ...updatePayload } = data; // Prevent email updates
       const updated = await apiClient.put<any>("/profile", updatePayload);
-      return { updated, emailChangedMsg };
+      return { updated, emailChangedMsg: "" };
     },
     onSuccess: ({ updated, emailChangedMsg }) => {
       // Invalidate if queryClient is available, otherwise just show toast
-      toast({ title: "Profile updated successfully", description: "Your changes have been saved." + emailChangedMsg });
+      toast({ title: "Profile updated successfully", description: "Your changes have been saved." });
       profileForm.reset(profileForm.getValues()); // Reset dirty state
+      refetchProfile();
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message || "Failed to update profile", variant: "destructive" });

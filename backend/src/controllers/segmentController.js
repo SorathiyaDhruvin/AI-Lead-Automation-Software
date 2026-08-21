@@ -1,24 +1,10 @@
 const segmentModel = require("../models/segmentModel");
 const leadModel = require("../models/leadModel");
+const geminiService = require("../services/geminiService");
 const { asyncHandler } = require("../middleware/errorHandler");
-const { OpenAI } = require("openai");
-
-let _ai = null;
-function getAI() {
-    if (!_ai) {
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) return null;
-        _ai = new OpenAI({
-            apiKey,
-            baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-        });
-    }
-    return _ai;
-}
 
 /**
  * GET /api/segments
- * Get all segments for the authenticated user.
  */
 const getSegments = asyncHandler(async (req, res) => {
     const segments = await segmentModel.getByUser(req.userId);
@@ -26,66 +12,77 @@ const getSegments = asyncHandler(async (req, res) => {
 });
 
 /**
- * POST /api/segments/auto-segment
- * Auto-segment all leads using AI.
+ * POST /api/segments
  */
-const autoSegment = asyncHandler(async (req, res) => {
-    const ai = getAI();
-    if (!ai) {
-        return res.status(500).json({ success: false, message: "Gemini API key is not configured on the server. Set GEMINI_API_KEY in environment variables." });
+const createSegment = asyncHandler(async (req, res) => {
+    const { name, description, criteria, color } = req.body;
+    if (!name) {
+        return res.status(400).json({ success: false, message: "Segment name is required" });
     }
 
+    const existing = await segmentModel.getByUser(req.userId);
+    const duplicate = existing.find(s => s.name.trim().toLowerCase() === name.trim().toLowerCase());
+    if (duplicate) {
+        return res.status(409).json({ success: false, message: `A segment named "${name}" already exists.` });
+    }
+
+    const segment = await segmentModel.create({
+        userId: req.userId,
+        name: name.trim(),
+        description,
+        criteria,
+        color
+    });
+
+    res.status(201).json({ success: true, data: segment });
+});
+
+/**
+ * PATCH /api/segments/:id
+ */
+const updateSegment = asyncHandler(async (req, res) => {
+    const { name, description, criteria, color, lead_count } = req.body;
+    
+    // Check if segment exists
+    const segment = await segmentModel.update(req.params.id, {
+        name,
+        description,
+        criteria,
+        color,
+        lead_count
+    });
+
+    if (!segment) {
+        return res.status(404).json({ success: false, message: "Segment not found" });
+    }
+
+    res.json({ success: true, data: segment });
+});
+
+/**
+ * DELETE /api/segments/:id
+ */
+const deleteSegment = asyncHandler(async (req, res) => {
+    const deleted = await segmentModel.delete(req.params.id);
+    if (!deleted) {
+        return res.status(404).json({ success: false, message: "Segment not found" });
+    }
+    res.status(204).send();
+});
+
+/**
+ * POST /api/segments/auto-segment
+ */
+const autoSegment = asyncHandler(async (req, res) => {
     const leads = await leadModel.getByUser(req.userId);
     if (!leads || leads.length === 0) {
         return res.status(400).json({ success: false, message: "No leads found to segment." });
     }
 
     try {
-        const leadData = leads.map(l => ({
-            id: l.id,
-            company: l.company,
-            jobTitle: l.occupation,
-            status: l.status,
-            score: l.ai_score,
-            source: l.source
-        }));
-
-        const prompt = `
-        Analyze the following leads and categorize them into 3-5 meaningful segments. 
-        Assign each lead to exactly one segment. Do not invent leads.
-        Return the output STRICTLY as a JSON object in this format:
-        {
-            "segments": [
-                {
-                    "name": "Segment Name (e.g. Hot Leads, Tech Companies, Decision Makers)",
-                    "description": "Short description of the segment",
-                    "criteria": "Criteria used for this segment",
-                    "color": "Hex color code starting with #",
-                    "leadIds": ["id1", "id2"]
-                }
-            ]
-        }
+        const aiSegments = await geminiService.autoSegmentLeads(leads);
         
-        Leads:
-        ${JSON.stringify(leadData)}
-        `;
-
-        const modelConfig = process.env.AI_MODEL || "gemini-2.0-flash";
-
-        const response = await ai.chat.completions.create({
-            model: modelConfig,
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" },
-        });
-
-        const aiResponse = JSON.parse(response.choices[0].message.content);
-        if (!aiResponse.segments || !Array.isArray(aiResponse.segments)) {
-            throw new Error("Invalid AI response format.");
-        }
-
-        const createdSegments = [];
-
-        for (const seg of aiResponse.segments) {
+        for (const seg of aiSegments) {
             let segmentRecord = await segmentModel.getByName(req.userId, seg.name);
             
             if (!segmentRecord) {
@@ -108,30 +105,28 @@ const autoSegment = asyncHandler(async (req, res) => {
 
             if (seg.leadIds && Array.isArray(seg.leadIds)) {
                 for (const leadId of seg.leadIds) {
-                    await leadModel.update(leadId, { segment_id: segmentRecord.id });
+                    // Check if lead belongs to the user before assigning
+                    const lead = await leadModel.getById(leadId);
+                    if (lead && lead.user_id === req.userId) {
+                        await leadModel.update(leadId, { segment_id: segmentRecord.id });
+                    }
                 }
             }
-
-            createdSegments.push(segmentRecord);
         }
 
-        // Return the newly created/updated segments matching the frontend format
-        // Frontend expects an array of segments directly (apiClient.post<Segment[]>)
-        res.json(createdSegments.map(s => ({
-            id: s.id,
-            userId: s.user_id,
-            name: s.name,
-            description: s.description,
-            criteria: s.criteria,
-            color: s.color,
-            leadCount: s.lead_count,
-            createdAt: s.created_at
-        })));
+        const segments = await segmentModel.getByUser(req.userId);
+        res.json({ success: true, data: segments });
 
     } catch (error) {
-        console.error("AI Segmentation Error:", error);
-        res.status(500).json({ success: false, message: "Failed to auto-segment leads. " + error.message });
+        console.error("Auto-Segmentation Controller Error:", error.message);
+        res.status(500).json({ success: false, message: "Auto-segmentation failed: " + error.message });
     }
 });
 
-module.exports = { getSegments, autoSegment };
+module.exports = {
+    getSegments,
+    createSegment,
+    updateSegment,
+    deleteSegment,
+    autoSegment
+};

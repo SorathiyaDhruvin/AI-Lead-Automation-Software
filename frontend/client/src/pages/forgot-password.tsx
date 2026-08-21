@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/services/api";
 
 const forgotPasswordSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -31,16 +32,9 @@ export default function ForgotPassword() {
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      const res = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: data.email }),
+      const result = await apiClient.post<{ message: string }>("/auth/forgot-password", {
+        email: data.email
       });
-      const result = await res.json();
-
-      if (!res.ok) {
-        throw new Error(result.message || "Failed to process request");
-      }
 
       toast({
         title: "Code sent",

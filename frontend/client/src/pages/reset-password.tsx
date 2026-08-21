@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/services/api";
 
 const resetPasswordSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -72,16 +73,10 @@ export default function ResetPassword() {
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      const res = await fetch("/api/auth/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, newPassword: data.password }),
+      await apiClient.post<{ message: string }>("/auth/reset-password", {
+        token,
+        newPassword: data.password
       });
-      const result = await res.json();
-
-      if (!res.ok) {
-        throw new Error(result.message || "Failed to reset password");
-      }
 
       toast({
         title: "Success",
