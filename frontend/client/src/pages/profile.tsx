@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User,
@@ -58,19 +58,20 @@ const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   username: z.string().min(3, "Username must be at least 3 characters"),
-  email: z.string().email("Invalid email address").optional(),
-  phone: z.string().optional(),
-  dob: z.string().optional(),
-  gender: z.string().optional(),
-  language: z.string().optional(),
-  country: z.string().optional(),
-  state: z.string().optional(),
-  city: z.string().optional(),
-  postalCode: z.string().optional(),
-  address: z.string().optional(),
-  jobTitle: z.string().optional(),
-  company: z.string().optional(),
-  department: z.string().optional(),
+  email: z.string().email("Invalid email address").optional(), // Handled strictly by backend/Auth
+  phone: z.string().min(1, "Phone number is required"),
+  dob: z.string().min(1, "Date of birth is required"),
+  gender: z.string().min(1, "Gender is required").refine(val => val !== "Select Gender", "Gender is required"),
+  language: z.string().min(1, "Preferred language is required"),
+  country: z.string().min(1, "Country is required"),
+  state: z.string().min(1, "State is required"),
+  city: z.string().min(1, "City is required"),
+  postalCode: z.string().min(1, "Postal code is required"),
+  address: z.string().min(1, "Address is required"),
+  jobTitle: z.string().min(1, "Job title is required"),
+  company: z.string().min(1, "Company is required"),
+  department: z.string().min(1, "Industry is required"),
+  experience: z.string().min(1, "Experience is required"),
   bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
   linkedin: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   github: z.string().url("Must be a valid URL").optional().or(z.literal("")),
@@ -97,7 +98,6 @@ type PasswordForm = z.infer<typeof passwordSchema>;
 export default function ProfilePage() {
   const { user, userProfile, session } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(true);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -107,19 +107,18 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(defaultAvatar);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const firstName = userProfile?.first_name || "";
+  const firstName = userProfile?.first_name || "User";
   const lastName = userProfile?.last_name || "";
 
   const { data: profileData, isLoading: isProfileLoading } = useQuery({
     queryKey: ["/api/profile"],
     queryFn: async () => {
       if (!user?.id) return {};
-      const { data, error } = await supabase.from("users").select().eq("id", user.id).maybeSingle();
+      const { data, error } = await supabase.from("users").select().eq("id", user.id).single();
       if (error) {
         if (error.code === 'PGRST116') return {}; // Not found
         throw error;
       }
-      if (!data) return {}; // Handle missing profile
       return {
         firstName: data.first_name,
         lastName: data.last_name,
@@ -132,6 +131,7 @@ export default function ProfilePage() {
         jobTitle: data.occupation,
         company: data.company,
         department: data.department,
+        experience: data.experience,
         bio: data.bio,
         country: data.country,
         state: data.state,
@@ -167,6 +167,7 @@ export default function ProfilePage() {
       jobTitle: "",
       company: "",
       department: "",
+      experience: "",
       bio: "",
       linkedin: "",
       github: "",
@@ -187,7 +188,7 @@ export default function ProfilePage() {
         username: profileData.username || "",
         email: profileData.email || "",
         phone: profileData.phone || "",
-        dob: profileData.dob || "",
+        dob: profileData.dob ? new Date(profileData.dob).toISOString().split("T")[0] : "",
         gender: profileData.gender || "Select Gender",
         language: profileData.language || "en",
         country: profileData.country || "",
@@ -198,6 +199,7 @@ export default function ProfilePage() {
         jobTitle: profileData.jobTitle || "",
         company: profileData.company || "",
         department: profileData.department || "",
+        experience: profileData.experience || "",
         bio: profileData.bio || "",
         linkedin: profileData.linkedin || "",
         github: profileData.github || "",
@@ -259,13 +261,12 @@ export default function ProfilePage() {
         }
         emailChangedMsg = " A confirmation email has been sent to your new address.";
       }
-      
-      const payload = { ...data };
-      const updated = await apiClient.put<any>("/profile", payload);
+      const { email, ...updatePayload } = data; // Prevent email updates
+      const updated = await apiClient.put<any>("/profile", updatePayload);
       return { updated, emailChangedMsg };
     },
     onSuccess: ({ updated, emailChangedMsg }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      // Invalidate if queryClient is available, otherwise just show toast
       toast({ title: "Profile updated successfully", description: "Your changes have been saved." + emailChangedMsg });
       profileForm.reset(profileForm.getValues()); // Reset dirty state
     },
@@ -317,8 +318,6 @@ export default function ProfilePage() {
 
   const handleImageUpload = async (file: File) => {
     try {
-      if (!user?.id) return;
-      
       const formData = new FormData();
       formData.append("photo", file);
       
@@ -326,12 +325,10 @@ export default function ProfilePage() {
       
       if (updatedUser.profile_image_url) {
         setAvatarUrl(updatedUser.profile_image_url);
-        queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
         toast({ title: "Image uploaded", description: "Your profile picture has been updated." });
       }
-    } catch (err: any) {
-      console.error("Profile image upload error:", err);
-      toast({ title: "Upload failed", description: err.message || "Could not upload profile picture.", variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Upload failed", description: "Could not upload profile picture.", variant: "destructive" });
     }
   };
 
@@ -488,31 +485,9 @@ export default function ProfilePage() {
                     variant="ghost" 
                     size="sm" 
                     className="mt-6 text-destructive hover:text-destructive hover:bg-destructive/10 w-full"
-                    onClick={async () => {
-                      try {
-                        if (!user?.id) return;
-                        
-                        const { data: files } = await supabase.storage.from("avatars").list(user.id);
-                        if (files && files.length > 0) {
-                          const filePaths = files.map(f => `${user.id}/${f.name}`);
-                          await supabase.storage.from("avatars").remove(filePaths);
-                        }
-                        
-                        const { error: updateError } = await supabase
-                          .from("users")
-                          .upsert({ id: user.id, profile_image_url: null }, { onConflict: "id" });
-                          
-                        if (updateError) {
-                          console.error("Profile image remove error:", updateError);
-                          throw new Error(updateError.message);
-                        }
-                        
-                        setAvatarUrl(null);
-                        queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-                      } catch (err: any) {
-                        console.error("Profile image remove error:", err);
-                        toast({ title: "Remove failed", description: err.message, variant: "destructive" });
-                      }
+                    onClick={() => {
+                      setAvatarUrl(null);
+                      profileForm.setValue("firstName", profileForm.getValues("firstName"), { shouldDirty: true });
                     }}
                   >
                     <Trash2 className="h-4 w-4 mr-2" /> Remove Picture
@@ -675,7 +650,7 @@ export default function ProfilePage() {
                         <FormItem><FormLabel>Username</FormLabel><FormControl><Input placeholder="Username" {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
                       <FormField control={profileForm.control} name="email" render={({ field }) => (
-                        <FormItem><FormLabel>Email Address</FormLabel><FormControl><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Email Address" type="email" {...field} /></div></FormControl><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Email Address</FormLabel><FormControl><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input disabled className="pl-9 bg-muted text-muted-foreground cursor-not-allowed" placeholder="Email Address" type="email" value={user?.email || ""} /></div></FormControl><FormMessage /></FormItem>
                       )} />
                       <FormField control={profileForm.control} name="phone" render={({ field }) => (
                         <FormItem><FormLabel>Phone Number</FormLabel><FormControl><div className="relative"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Phone Number" type="tel" {...field} /></div></FormControl><FormMessage /></FormItem>
@@ -686,7 +661,7 @@ export default function ProfilePage() {
                       <FormField control={profileForm.control} name="gender" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Gender</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl><SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger></FormControl>
                             <SelectContent>
                               <SelectItem value="Select Gender">Select Gender</SelectItem>
@@ -701,7 +676,7 @@ export default function ProfilePage() {
                       <FormField control={profileForm.control} name="language" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Preferred Language</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl><SelectTrigger><SelectValue placeholder="Select language" /></SelectTrigger></FormControl>
                             <SelectContent>
                               <SelectItem value="en">English</SelectItem>
@@ -759,15 +734,18 @@ export default function ProfilePage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                       <FormField control={profileForm.control} name="jobTitle" render={({ field }) => (
-                        <FormItem><FormLabel>Job Title</FormLabel><FormControl><Input placeholder="Job Title" {...field} /></FormControl><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Job Title / Designation</FormLabel><FormControl><Input placeholder="Job Title" {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
                       <FormField control={profileForm.control} name="company" render={({ field }) => (
                         <FormItem><FormLabel>Company</FormLabel><FormControl><Input placeholder="Company" {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
                       <FormField control={profileForm.control} name="department" render={({ field }) => (
-                        <FormItem><FormLabel>Department</FormLabel><FormControl><Input placeholder="Department" {...field} /></FormControl><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Industry</FormLabel><FormControl><Input placeholder="Industry" {...field} /></FormControl><FormMessage /></FormItem>
+                      )} />
+                      <FormField control={profileForm.control} name="experience" render={({ field }) => (
+                        <FormItem><FormLabel>Experience</FormLabel><FormControl><Input placeholder="e.g. 5 years" {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
                     </div>
                     <FormField control={profileForm.control} name="bio" render={({ field }) => (

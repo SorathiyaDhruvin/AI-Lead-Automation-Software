@@ -48,12 +48,26 @@ const updateProfile = asyncHandler(async (req, res) => {
     // Prevent updating sensitive fields
     const { id, password, role, created_at, updated_at, ...updates } = req.body;
 
+    // STRICT VALIDATION: Reject missing required fields
+    const requiredFields = [
+        "firstName", "lastName", "phone", "dob", "gender", "language",
+        "address", "city", "state", "country", "postalCode",
+        "jobTitle", "company", "department"
+    ];
+
+    const missingFields = requiredFields.filter(field => !updates[field] || String(updates[field]).trim() === "");
+    if (missingFields.length > 0) {
+        return res.status(400).json({
+            success: false,
+            message: `Profile update failed. Missing required fields: ${missingFields.join(", ")}`
+        });
+    }
+
     // Convert camelCase from frontend to snake_case for DB
     const dbUpdates = {};
     if (updates.firstName !== undefined) dbUpdates.first_name = updates.firstName;
     if (updates.lastName !== undefined) dbUpdates.last_name = updates.lastName;
     if (updates.username !== undefined) dbUpdates.username = updates.username;
-    if (updates.email !== undefined) dbUpdates.email = updates.email;
     if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
     if (updates.dob !== undefined) {
         dbUpdates.dob = updates.dob === "" ? null : updates.dob;
@@ -63,6 +77,7 @@ const updateProfile = asyncHandler(async (req, res) => {
     if (updates.jobTitle !== undefined) dbUpdates.occupation = updates.jobTitle;
     if (updates.company !== undefined) dbUpdates.company = updates.company;
     if (updates.department !== undefined) dbUpdates.department = updates.department;
+    if (updates.experience !== undefined) dbUpdates.experience = updates.experience;
     if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
     if (updates.country !== undefined) dbUpdates.country = updates.country;
     if (updates.state !== undefined) dbUpdates.state = updates.state;

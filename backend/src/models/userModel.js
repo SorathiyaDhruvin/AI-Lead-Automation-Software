@@ -44,7 +44,7 @@ const userModel = {
         const allowed = [
             "email", "password", "first_name", "last_name", "username", "phone", 
             "dob", "gender", "language", "occupation", "company", "department", 
-            "bio", "country", "state", "city", "postal_code", "street_address", 
+            "experience", "bio", "country", "state", "city", "postal_code", "street_address", 
             "linkedin", "github", "portfolio", "twitter", "website", 
             "profile_image_url", "role"
         ];

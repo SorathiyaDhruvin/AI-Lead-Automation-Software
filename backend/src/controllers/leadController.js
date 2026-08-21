@@ -1,6 +1,11 @@
 const leadModel = require("../models/leadModel");
 const activityModel = require("../models/activityModel");
 const { asyncHandler } = require("../middleware/errorHandler");
+const { OpenAI } = require("openai");
+
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+});
 
 /**
  * GET /api/leads
@@ -159,4 +164,79 @@ const deleteLead = asyncHandler(async (req, res) => {
     });
 });
 
-module.exports = { getLeads, getLeadById, createLead, updateLead, deleteLead };
+/**
+ * POST /api/leads/:id/score
+ * Generate an AI score for a lead using OpenAI.
+ */
+const scoreLead = asyncHandler(async (req, res) => {
+    const existing = await leadModel.getById(req.params.id);
+
+    if (!existing) {
+        return res.status(404).json({ success: false, message: "Lead not found" });
+    }
+
+    if (existing.user_id !== req.userId) {
+        return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    if (!openai.apiKey) {
+        return res.status(500).json({ success: false, message: "OpenAI API key is not configured on the server." });
+    }
+
+    try {
+        const prompt = `
+        Evaluate this lead and provide a score from 0 to 100 based on their potential to convert.
+        Lead Data:
+        Name: ${existing.name}
+        Email: ${existing.email}
+        Company: ${existing.company || "Unknown"}
+        Phone: ${existing.phone || "Unknown"}
+        Source: ${existing.source}
+        Status: ${existing.status}
+        Notes: ${existing.notes || "None"}
+
+        Respond strictly with JSON in the following format:
+        {
+          "score": <number between 0-100>,
+          "reason": "<short explanation>"
+        }
+        `;
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini", // Fallback to a fast, cheap model
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
+        });
+
+        const aiResponse = JSON.parse(response.choices[0].message.content);
+        const score = typeof aiResponse.score === "number" ? aiResponse.score : parseInt(aiResponse.score);
+        const reason = aiResponse.reason || "AI evaluation completed.";
+
+        if (isNaN(score) || score < 0 || score > 100) {
+            throw new Error("AI returned an invalid score.");
+        }
+
+        const updatedLead = await leadModel.update(existing.id, {
+            ai_score: score,
+            ai_insights: reason,
+        });
+
+        activityModel.create({
+            leadId: existing.id,
+            userId: req.userId,
+            type: "scored",
+            description: `AI scored lead at ${score}/100. Reason: ${reason}`,
+        }).catch(err => console.error("Activity log error:", err));
+
+        res.json({
+            success: true,
+            data: updatedLead,
+        });
+
+    } catch (error) {
+        console.error("AI Scoring Error:", error);
+        res.status(500).json({ success: false, message: "Failed to score lead. " + error.message });
+    }
+});
+
+module.exports = { getLeads, getLeadById, createLead, updateLead, deleteLead, scoreLead };

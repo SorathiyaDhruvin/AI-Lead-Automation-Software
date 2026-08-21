@@ -16,19 +16,23 @@ function filtersToParams(filters?: LeadFilters, limit?: number): Record<string, 
 export const leadsService = {
   // ── CRUD ────────────────────────────────────────────────
   async getAll(filters?: LeadFilters, limit?: number): Promise<Lead[]> {
-    return apiClient.get<Lead[]>("/leads", filtersToParams(filters, limit));
+    const leads = await apiClient.get<Lead[]>("/leads", filtersToParams(filters, limit));
+    return leads.map(l => ({...l, createdAt: l.createdAt || (l as any).created_at, updatedAt: l.updatedAt || (l as any).updated_at}));
   },
 
   async getById(id: string): Promise<Lead> {
-    return apiClient.get<Lead>(`/leads/${id}`);
+    const l = await apiClient.get<Lead>(`/leads/${id}`);
+    return {...l, createdAt: l.createdAt || (l as any).created_at, updatedAt: l.updatedAt || (l as any).updated_at};
   },
 
   async create(data: Partial<Lead>): Promise<Lead> {
-    return apiClient.post<Lead>("/leads", data);
+    const l = await apiClient.post<Lead>("/leads", data);
+    return {...l, createdAt: l.createdAt || (l as any).created_at, updatedAt: l.updatedAt || (l as any).updated_at};
   },
 
   async update(id: string, data: Partial<Lead>): Promise<Lead> {
-    return apiClient.put<Lead>(`/leads/${id}`, data);
+    const l = await apiClient.put<Lead>(`/leads/${id}`, data);
+    return {...l, createdAt: l.createdAt || (l as any).created_at, updatedAt: l.updatedAt || (l as any).updated_at};
   },
 
   async remove(id: string): Promise<void> {
@@ -37,7 +41,8 @@ export const leadsService = {
 
   // ── AI Scoring ──────────────────────────────────────────
   async score(id: string): Promise<Lead> {
-    return apiClient.post<Lead>(`/leads/${id}/score`);
+    const l = await apiClient.post<Lead>(`/leads/${id}/score`);
+    return {...l, createdAt: l.createdAt || (l as any).created_at, updatedAt: l.updatedAt || (l as any).updated_at};
   },
 
   // ── Email ───────────────────────────────────────────────
