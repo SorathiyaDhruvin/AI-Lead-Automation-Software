@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User,
@@ -97,6 +97,7 @@ type PasswordForm = z.infer<typeof passwordSchema>;
 export default function ProfilePage() {
   const { user, userProfile, session } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(true);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -245,15 +246,50 @@ export default function ProfilePage() {
 
   const profileMutation = useMutation({
     mutationFn: async (data: ProfileForm) => {
-      const updated = await apiClient.put("/profile", data);
+      const payload = {
+        first_name: data.firstName,
+        last_name: data.lastName,
+        username: data.username,
+        phone: data.phone,
+        dob: data.dob || null,
+        gender: data.gender,
+        language: data.language,
+        occupation: data.jobTitle,
+        company: data.company,
+        department: data.department,
+        bio: data.bio,
+        country: data.country,
+        state: data.state,
+        city: data.city,
+        postal_code: data.postalCode,
+        street_address: data.address,
+        linkedin: data.linkedin,
+        github: data.github,
+        portfolio: data.portfolio,
+        twitter: data.twitter,
+        updated_at: new Date().toISOString()
+      };
+      
+      const { data: updated, error } = await supabase
+        .from("users")
+        .update(payload)
+        .eq("id", user?.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Profile update error:", error);
+        throw new Error(error.message);
+      }
       return updated;
     },
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       toast({ title: "Profile updated successfully", description: "Your changes have been saved." });
       profileForm.reset(profileForm.getValues()); // Reset dirty state
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to update profile", variant: "destructive" });
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to update profile", variant: "destructive" });
     },
   });
 
@@ -277,6 +313,18 @@ export default function ProfilePage() {
     },
   });
 
+  const validateImage = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please upload an image file.", variant: "destructive" });
+      return false;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Image must be under 5MB.", variant: "destructive" });
+      return false;
+    }
+    return true;
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -291,26 +339,82 @@ export default function ProfilePage() {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) {
+    if (file && validateImage(file)) {
       handleImageUpload(file);
-    } else {
-      toast({ title: "Invalid file", description: "Please upload an image file.", variant: "destructive" });
     }
   };
 
   const handleImageUpload = async (file: File) => {
     try {
-      const formData = new FormData();
-      formData.append("photo", file);
+      if (!user?.id) return;
       
-      const updatedUser = await apiClient.patchForm<any>("/profile/photo", formData);
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/profile.${fileExt}`;
       
-      if (updatedUser.profile_image_url) {
-        setAvatarUrl(updatedUser.profile_image_url);
-        toast({ title: "Image uploaded", description: "Your profile picture has been updated." });
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, {
+          upsert: true,
+          contentType: file.type,
+        });
+        
+      if (uploadError) {
+        console.error("Profile image upload error:", uploadError);
+        throw new Error(uploadError.message);
       }
-    } catch (err) {
-      toast({ title: "Upload failed", description: "Could not upload profile picture.", variant: "destructive" });
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+        
+      const imageUrl = `${publicUrl}?t=${new Date().getTime()}`;
+      
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ profile_image_url: imageUrl })
+        .eq("id", user.id);
+        
+      if (updateError) {
+        console.error("Profile image DB update error:", updateError);
+        throw new Error(updateError.message);
+      }
+      
+      setAvatarUrl(imageUrl);
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      toast({ title: "Image uploaded", description: "Your profile picture has been updated." });
+    } catch (err: any) {
+      console.error("Profile image upload error:", err);
+      toast({ title: "Upload failed", description: err.message || "Could not upload profile picture.", variant: "destructive" });
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    try {
+      if (!user?.id) return;
+      
+      const { data: files } = await supabase.storage.from("avatars").list(user.id);
+      if (files && files.length > 0) {
+        const filePaths = files.map(f => `${user.id}/${f.name}`);
+        await supabase.storage.from("avatars").remove(filePaths);
+      }
+      
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ profile_image_url: null })
+        .eq("id", user.id);
+        
+      if (updateError) {
+        console.error("Profile image remove error:", updateError);
+        throw new Error(updateError.message);
+      }
+      
+      setAvatarUrl(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      profileForm.setValue("firstName", profileForm.getValues("firstName"), { shouldDirty: true });
+      toast({ title: "Image removed", description: "Your profile picture has been removed." });
+    } catch (err: any) {
+      console.error("Profile image remove error:", err);
+      toast({ title: "Removal failed", description: err.message || "Could not remove profile picture.", variant: "destructive" });
     }
   };
 
@@ -429,7 +533,8 @@ export default function ProfilePage() {
                     className="hidden" 
                     accept="image/*"
                     onChange={(e) => {
-                      if (e.target.files?.[0]) handleImageUpload(e.target.files[0]);
+                      const file = e.target.files?.[0];
+                      if (file && validateImage(file)) handleImageUpload(file);
                     }}
                   />
                 </div>
@@ -467,10 +572,7 @@ export default function ProfilePage() {
                     variant="ghost" 
                     size="sm" 
                     className="mt-6 text-destructive hover:text-destructive hover:bg-destructive/10 w-full"
-                    onClick={() => {
-                      setAvatarUrl(null);
-                      profileForm.setValue("firstName", profileForm.getValues("firstName"), { shouldDirty: true });
-                    }}
+                    onClick={handleRemoveImage}
                   >
                     <Trash2 className="h-4 w-4 mr-2" /> Remove Picture
                   </Button>
@@ -632,7 +734,7 @@ export default function ProfilePage() {
                         <FormItem><FormLabel>Username</FormLabel><FormControl><Input placeholder="Username" {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
                       <FormField control={profileForm.control} name="email" render={({ field }) => (
-                        <FormItem><FormLabel>Email Address</FormLabel><FormControl><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Email Address" type="email" {...field} /></div></FormControl><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Email Address</FormLabel><FormControl><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Email Address" type="email" disabled={true} {...field} /></div></FormControl><FormMessage /></FormItem>
                       )} />
                       <FormField control={profileForm.control} name="phone" render={({ field }) => (
                         <FormItem><FormLabel>Phone Number</FormLabel><FormControl><div className="relative"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Phone Number" type="tel" {...field} /></div></FormControl><FormMessage /></FormItem>
