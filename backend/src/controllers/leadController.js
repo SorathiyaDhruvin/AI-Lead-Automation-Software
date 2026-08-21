@@ -204,7 +204,7 @@ const scoreLead = asyncHandler(async (req, res) => {
         `;
 
         const response = await ai.chat.completions.create({
-            model: "grok-beta",
+            model: "grok-2-latest",
             messages: [{ role: "user", content: prompt }],
             response_format: { type: "json_object" },
         });
