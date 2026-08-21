@@ -1,11 +1,13 @@
 const userModel = require("../models/userModel");
 const { asyncHandler } = require("../middleware/errorHandler");
-const { createClient } = require("@supabase/supabase-js");
+const ImageKit = require("imagekit");
 
-// Initialize Supabase client for storage
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
-const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+// Initialize ImageKit
+const imagekit = new ImageKit({
+    publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+    privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+    urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
+});
 
 /**
  * GET /api/profile
@@ -77,42 +79,30 @@ const updateProfile = asyncHandler(async (req, res) => {
 
 /**
  * PATCH /api/profile/photo
- * Upload profile photo to Supabase Storage and update user profile.
+ * Upload profile photo to ImageKit and update user profile.
  */
 const uploadPhoto = asyncHandler(async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ message: "No photo provided" });
     }
 
-    if (!supabase) {
-        return res.status(500).json({ message: "Storage is not configured" });
+    if (!process.env.IMAGEKIT_PUBLIC_KEY || !process.env.IMAGEKIT_PRIVATE_KEY || !process.env.IMAGEKIT_URL_ENDPOINT) {
+        return res.status(500).json({ message: "ImageKit is not configured" });
     }
 
     try {
         const fileExt = req.file.originalname.split('.').pop();
         const fileName = `${req.userId}-${Date.now()}.${fileExt}`;
-        const filePath = `${req.userId}/${fileName}`;
 
-        // Upload to Supabase Storage 'avatars' bucket
-        const { error: uploadError, data } = await supabase.storage
-            .from('avatars')
-            .upload(filePath, req.file.buffer, {
-                contentType: req.file.mimetype,
-                upsert: true
-            });
-
-        if (uploadError) {
-            console.error("Storage upload error:", uploadError);
-            return res.status(500).json({ message: "Failed to upload to storage" });
-        }
-
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-            .from('avatars')
-            .getPublicUrl(filePath);
+        // Upload to ImageKit
+        const response = await imagekit.upload({
+            file: req.file.buffer, // required, can be a base64 string or buffer
+            fileName: fileName,
+            folder: "/avatars",
+        });
 
         // Update user profile in DB
-        const user = await userModel.update(req.userId, { profile_image_url: publicUrl });
+        const user = await userModel.update(req.userId, { profile_image_url: response.url });
 
         if (!user) {
             return res.status(404).json({ message: "User not found" });

@@ -35,18 +35,7 @@ const userModel = {
         return rows[0] || null;
     },
 
-    /**
-     * Create a new user. Returns the created user (with id, without password).
-     */
-    async create({ email, password, firstName, lastName, role = "user" }) {
-        const { rows } = await pool.query(
-            `INSERT INTO users (email, password, first_name, last_name, role)
-             VALUES ($1, $2, $3, $4, $5)
-             RETURNING id, email, first_name, last_name, role, created_at`,
-            [email, password, firstName || null, lastName || null, role]
-        );
-        return rows[0];
-    },
+
 
     /**
      * Update user fields. Only updates provided fields.
