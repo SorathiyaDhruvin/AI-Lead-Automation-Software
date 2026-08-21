@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const segmentController = require("../controllers/segmentController");
-const authMiddleware = require("../middleware/authMiddleware");
+const { authMiddleware } = require("../middleware/auth");
 
 // All segment routes are protected
 router.use(authMiddleware);
