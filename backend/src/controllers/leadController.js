@@ -1,10 +1,11 @@
 const leadModel = require("../models/leadModel");
 const activityModel = require("../models/activityModel");
 const { asyncHandler } = require("../middleware/errorHandler");
-const { GoogleGenAI } = require("@google/genai");
+const { OpenAI } = require("openai");
 
-const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY,
+const ai = new OpenAI({
+    apiKey: process.env.XAI_API_KEY,
+    baseURL: "https://api.x.ai/v1",
 });
 
 /**
@@ -180,7 +181,7 @@ const scoreLead = asyncHandler(async (req, res) => {
     }
 
     if (!ai.apiKey) {
-        return res.status(500).json({ success: false, message: "Gemini API key is not configured on the server." });
+        return res.status(500).json({ success: false, message: "xAI API key is not configured on the server." });
     }
 
     try {
@@ -202,15 +203,13 @@ const scoreLead = asyncHandler(async (req, res) => {
         }
         `;
 
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-            }
+        const response = await ai.chat.completions.create({
+            model: "grok-beta",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
         });
 
-        const aiResponse = JSON.parse(response.text);
+        const aiResponse = JSON.parse(response.choices[0].message.content);
         const score = typeof aiResponse.score === "number" ? aiResponse.score : parseInt(aiResponse.score);
         const reason = aiResponse.reason || "AI evaluation completed.";
 
