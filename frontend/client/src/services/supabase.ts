@@ -56,7 +56,7 @@ export async function syncUserProfile(user: User): Promise<UserProfile | null> {
     let lastName = user.user_metadata?.last_name || user.user_metadata?.family_name || user.user_metadata?.name?.split(" ").slice(1).join(" ");
     
     if (!firstName && !lastName) {
-      firstName = user.email?.split("@")[0] || "User";
+      firstName = user.email?.split("@")[0] || "";
       lastName = "";
     }
     const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
@@ -64,11 +64,11 @@ export async function syncUserProfile(user: User): Promise<UserProfile | null> {
     const newUser: any = {
       id: user.id,
       email: user.email || "",
-      first_name: firstName,
-      last_name: lastName,
+      first_name: firstName || null,
+      last_name: lastName || null,
       profile_image_url: avatarUrl,
       role: computedRole,
-      password: "oauth-user",
+      created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
@@ -80,7 +80,8 @@ export async function syncUserProfile(user: User): Promise<UserProfile | null> {
 
     if (insertError) {
       console.error("Error inserting user into users table:", insertError.message);
-      return newUser;
+      // DO NOT return mock/dummy data.
+      return null;
     }
 
     return insertedUser as UserProfile;

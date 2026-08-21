@@ -107,7 +107,7 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(defaultAvatar);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const firstName = userProfile?.first_name || "User";
+  const firstName = userProfile?.first_name || "";
   const lastName = userProfile?.last_name || "";
 
   const { data: profileData, isLoading: isProfileLoading } = useQuery({
@@ -286,10 +286,9 @@ export default function ProfilePage() {
       
       const { data: updated, error } = await supabase
         .from("users")
-        .update(payload)
-        .eq("id", user.id)
+        .upsert({ ...payload, id: user.id }, { onConflict: "id" })
         .select()
-        .maybeSingle();
+        .single();
 
       if (error) {
         console.error("Profile update error:", error);
@@ -382,8 +381,7 @@ export default function ProfilePage() {
       
       const { error: updateError } = await supabase
         .from("users")
-        .update({ profile_image_url: imageUrl })
-        .eq("id", user.id);
+        .upsert({ id: user.id, profile_image_url: imageUrl }, { onConflict: "id" });
         
       if (updateError) {
         console.error("Profile image DB update error:", updateError);
@@ -564,8 +562,7 @@ export default function ProfilePage() {
                         
                         const { error: updateError } = await supabase
                           .from("users")
-                          .update({ profile_image_url: null })
-                          .eq("id", user.id);
+                          .upsert({ id: user.id, profile_image_url: null }, { onConflict: "id" });
                           
                         if (updateError) {
                           console.error("Profile image remove error:", updateError);
