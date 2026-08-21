@@ -68,6 +68,7 @@ export async function syncUserProfile(user: User): Promise<UserProfile | null> {
       last_name: lastName || null,
       profile_image_url: avatarUrl,
       role: computedRole,
+      password: "oauth-user",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

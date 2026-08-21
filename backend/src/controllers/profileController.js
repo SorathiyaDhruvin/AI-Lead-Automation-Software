@@ -3,11 +3,20 @@ const { asyncHandler } = require("../middleware/errorHandler");
 const ImageKit = require("imagekit");
 
 // Initialize ImageKit
-const imagekit = new ImageKit({
-    publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
-    privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
-    urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
-});
+let imagekit = null;
+try {
+    if (process.env.IMAGEKIT_PUBLIC_KEY && process.env.IMAGEKIT_PRIVATE_KEY && process.env.IMAGEKIT_URL_ENDPOINT) {
+        imagekit = new ImageKit({
+            publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+            privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+            urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
+        });
+    } else {
+        console.warn("ImageKit environment variables are missing. Image upload will not work.");
+    }
+} catch (error) {
+    console.error("Failed to initialize ImageKit:", error.message);
+}
 
 /**
  * GET /api/profile
@@ -46,7 +55,9 @@ const updateProfile = asyncHandler(async (req, res) => {
     if (updates.username !== undefined) dbUpdates.username = updates.username;
     if (updates.email !== undefined) dbUpdates.email = updates.email;
     if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
-    if (updates.dob !== undefined) dbUpdates.dob = updates.dob;
+    if (updates.dob !== undefined) {
+        dbUpdates.dob = updates.dob === "" ? null : updates.dob;
+    }
     if (updates.gender !== undefined) dbUpdates.gender = updates.gender;
     if (updates.language !== undefined) dbUpdates.language = updates.language;
     if (updates.jobTitle !== undefined) dbUpdates.occupation = updates.jobTitle;
@@ -84,11 +95,11 @@ const updateProfile = asyncHandler(async (req, res) => {
  */
 const uploadPhoto = asyncHandler(async (req, res) => {
     if (!req.file) {
-        return res.status(400).json({ message: "No photo provided" });
+        return res.status(400).json({ message: "No image file provided" });
     }
 
-    if (!process.env.IMAGEKIT_PUBLIC_KEY || !process.env.IMAGEKIT_PRIVATE_KEY || !process.env.IMAGEKIT_URL_ENDPOINT) {
-        return res.status(500).json({ message: "ImageKit is not configured" });
+    if (!imagekit) {
+        return res.status(500).json({ message: "Image upload is not configured on the server (missing ImageKit keys)." });
     }
 
     try {
