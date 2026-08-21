@@ -58,7 +58,7 @@ const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   username: z.string().min(3, "Username must be at least 3 characters"),
-  email: z.string().email("Invalid email address").optional().or(z.literal('')),
+  email: z.string().email("Invalid email address"),
   phone: z.string().optional(),
   dob: z.string().optional(),
   gender: z.string().optional(),
@@ -114,11 +114,12 @@ export default function ProfilePage() {
     queryKey: ["/api/profile"],
     queryFn: async () => {
       if (!user?.id) return {};
-      const { data, error } = await supabase.from("users").select().eq("id", user.id).single();
+      const { data, error } = await supabase.from("users").select().eq("id", user.id).maybeSingle();
       if (error) {
         if (error.code === 'PGRST116') return {}; // Not found
         throw error;
       }
+      if (!data) return {}; // Handle case where profile row doesn't exist yet
       return {
         firstName: data.first_name,
         lastName: data.last_name,
@@ -186,7 +187,7 @@ export default function ProfilePage() {
         username: profileData.username || "",
         email: profileData.email || "",
         phone: profileData.phone || "",
-        dob: profileData.dob ? new Date(profileData.dob).toISOString().split("T")[0] : "",
+        dob: profileData.dob || "",
         gender: profileData.gender || "Select Gender",
         language: profileData.language || "en",
         country: profileData.country || "",
@@ -270,22 +271,32 @@ export default function ProfilePage() {
         updated_at: new Date().toISOString()
       };
       
+      let emailChangedMsg = "";
+      if (data.email && data.email !== user?.email) {
+        const { error: authError } = await supabase.auth.updateUser({ email: data.email });
+        if (authError) {
+          console.error("Auth email update error:", authError);
+          throw new Error("Failed to update authentication email: " + authError.message);
+        }
+        emailChangedMsg = " A confirmation email has been sent to your new address.";
+      }
+      
       const { data: updated, error } = await supabase
         .from("users")
         .update(payload)
         .eq("id", user?.id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error("Profile update error:", error);
         throw new Error(error.message);
       }
-      return updated;
+      return { updated, emailChangedMsg };
     },
-    onSuccess: (data) => {
+    onSuccess: ({ updated, emailChangedMsg }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-      toast({ title: "Profile updated successfully", description: "Your changes have been saved." });
+      toast({ title: "Profile updated successfully", description: "Your changes have been saved." + emailChangedMsg });
       profileForm.reset(profileForm.getValues()); // Reset dirty state
     },
     onError: (error: Error) => {
@@ -348,8 +359,15 @@ export default function ProfilePage() {
     try {
       if (!user?.id) return;
       
+      // Clean up old avatar files first
+      const { data: existingFiles } = await supabase.storage.from("avatars").list(user.id);
+      if (existingFiles && existingFiles.length > 0) {
+        const oldPaths = existingFiles.map(f => `${user.id}/${f.name}`);
+        await supabase.storage.from("avatars").remove(oldPaths);
+      }
+      
       const fileExt = file.name.split('.').pop();
-      const filePath = `${user.id}/profile.${fileExt}`;
+      const filePath = `${user.id}/profile_${Date.now()}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
         .from("avatars")
@@ -367,7 +385,7 @@ export default function ProfilePage() {
         .from("avatars")
         .getPublicUrl(filePath);
         
-      const imageUrl = `${publicUrl}?t=${new Date().getTime()}`;
+      const imageUrl = publicUrl;
       
       const { error: updateError } = await supabase
         .from("users")
@@ -734,7 +752,7 @@ export default function ProfilePage() {
                         <FormItem><FormLabel>Username</FormLabel><FormControl><Input placeholder="Username" {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
                       <FormField control={profileForm.control} name="email" render={({ field }) => (
-                        <FormItem><FormLabel>Email Address</FormLabel><FormControl><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Email Address" type="email" disabled={true} {...field} /></div></FormControl><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Email Address</FormLabel><FormControl><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Email Address" type="email" {...field} /></div></FormControl><FormMessage /></FormItem>
                       )} />
                       <FormField control={profileForm.control} name="phone" render={({ field }) => (
                         <FormItem><FormLabel>Phone Number</FormLabel><FormControl><div className="relative"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Phone Number" type="tel" {...field} /></div></FormControl><FormMessage /></FormItem>
@@ -745,7 +763,7 @@ export default function ProfilePage() {
                       <FormField control={profileForm.control} name="gender" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Gender</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl><SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger></FormControl>
                             <SelectContent>
                               <SelectItem value="Select Gender">Select Gender</SelectItem>
@@ -760,7 +778,7 @@ export default function ProfilePage() {
                       <FormField control={profileForm.control} name="language" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Preferred Language</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl><SelectTrigger><SelectValue placeholder="Select language" /></SelectTrigger></FormControl>
                             <SelectContent>
                               <SelectItem value="en">English</SelectItem>
