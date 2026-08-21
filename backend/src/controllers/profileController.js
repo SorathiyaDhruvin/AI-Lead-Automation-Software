@@ -44,6 +44,7 @@ const updateProfile = asyncHandler(async (req, res) => {
     if (updates.firstName !== undefined) dbUpdates.first_name = updates.firstName;
     if (updates.lastName !== undefined) dbUpdates.last_name = updates.lastName;
     if (updates.username !== undefined) dbUpdates.username = updates.username;
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
     if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
     if (updates.dob !== undefined) dbUpdates.dob = updates.dob;
     if (updates.gender !== undefined) dbUpdates.gender = updates.gender;

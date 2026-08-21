@@ -249,30 +249,6 @@ export default function ProfilePage() {
     mutationFn: async (data: ProfileForm) => {
       if (!user?.id) throw new Error("Not authenticated");
 
-      const payload = {
-        first_name: data.firstName,
-        last_name: data.lastName,
-        username: data.username,
-        phone: data.phone,
-        dob: data.dob || null, // Fix empty DOB
-        gender: data.gender,
-        language: data.language,
-        occupation: data.jobTitle,
-        company: data.company,
-        department: data.department,
-        bio: data.bio,
-        country: data.country,
-        state: data.state,
-        city: data.city,
-        postal_code: data.postalCode,
-        street_address: data.address,
-        linkedin: data.linkedin,
-        github: data.github,
-        portfolio: data.portfolio,
-        twitter: data.twitter,
-        updated_at: new Date().toISOString()
-      };
-      
       let emailChangedMsg = "";
       // Handle email update in Supabase Auth if it changed
       if (data.email && data.email !== user?.email) {
@@ -284,16 +260,8 @@ export default function ProfilePage() {
         emailChangedMsg = " A confirmation email has been sent to your new address.";
       }
       
-      const { data: updated, error } = await supabase
-        .from("users")
-        .upsert({ ...payload, id: user.id }, { onConflict: "id" })
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Profile update error:", error);
-        throw new Error(error.message);
-      }
+      const payload = { ...data };
+      const updated = await apiClient.put<any>("/profile", payload);
       return { updated, emailChangedMsg };
     },
     onSuccess: ({ updated, emailChangedMsg }) => {
@@ -351,46 +319,16 @@ export default function ProfilePage() {
     try {
       if (!user?.id) return;
       
-      // Clean up old avatar files first
-      const { data: existingFiles } = await supabase.storage.from("avatars").list(user.id);
-      if (existingFiles && existingFiles.length > 0) {
-        const oldPaths = existingFiles.map(f => `${user.id}/${f.name}`);
-        await supabase.storage.from("avatars").remove(oldPaths);
+      const formData = new FormData();
+      formData.append("photo", file);
+      
+      const updatedUser = await apiClient.patchForm<any>("/profile/photo", formData);
+      
+      if (updatedUser.profile_image_url) {
+        setAvatarUrl(updatedUser.profile_image_url);
+        queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+        toast({ title: "Image uploaded", description: "Your profile picture has been updated." });
       }
-      
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${user.id}/profile_${Date.now()}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file, {
-          upsert: true,
-          contentType: file.type,
-        });
-        
-      if (uploadError) {
-        console.error("Profile image upload error:", uploadError);
-        throw new Error(uploadError.message);
-      }
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
-        
-      const imageUrl = publicUrl;
-      
-      const { error: updateError } = await supabase
-        .from("users")
-        .upsert({ id: user.id, profile_image_url: imageUrl }, { onConflict: "id" });
-        
-      if (updateError) {
-        console.error("Profile image DB update error:", updateError);
-        throw new Error(updateError.message);
-      }
-      
-      setAvatarUrl(imageUrl);
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-      toast({ title: "Image uploaded", description: "Your profile picture has been updated." });
     } catch (err: any) {
       console.error("Profile image upload error:", err);
       toast({ title: "Upload failed", description: err.message || "Could not upload profile picture.", variant: "destructive" });
