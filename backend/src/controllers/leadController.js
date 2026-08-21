@@ -4,8 +4,8 @@ const { asyncHandler } = require("../middleware/errorHandler");
 const { OpenAI } = require("openai");
 
 const ai = new OpenAI({
-    apiKey: process.env.XAI_API_KEY,
-    baseURL: "https://api.x.ai/v1",
+    apiKey: process.env.GEMINI_API_KEY,
+    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
 });
 
 /**
@@ -181,7 +181,7 @@ const scoreLead = asyncHandler(async (req, res) => {
     }
 
     if (!ai.apiKey) {
-        return res.status(500).json({ success: false, message: "xAI API key is not configured on the server." });
+        return res.status(500).json({ success: false, message: "Gemini API key is not configured on the server." });
     }
 
     try {
@@ -207,7 +207,7 @@ const scoreLead = asyncHandler(async (req, res) => {
         }
         `;
 
-        const modelConfig = process.env.AI_MODEL || "grok-4.6";
+        const modelConfig = process.env.AI_MODEL || "gemini-2.0-flash";
 
         const response = await ai.chat.completions.create({
             model: modelConfig,
