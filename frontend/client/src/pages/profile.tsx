@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User,
@@ -58,7 +58,7 @@ const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   username: z.string().min(3, "Username must be at least 3 characters"),
-  email: z.string().email("Invalid email address"),
+  email: z.string().email("Invalid email address").optional(),
   phone: z.string().optional(),
   dob: z.string().optional(),
   gender: z.string().optional(),
@@ -97,6 +97,7 @@ type PasswordForm = z.infer<typeof passwordSchema>;
 export default function ProfilePage() {
   const { user, userProfile, session } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(true);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -113,11 +114,12 @@ export default function ProfilePage() {
     queryKey: ["/api/profile"],
     queryFn: async () => {
       if (!user?.id) return {};
-      const { data, error } = await supabase.from("users").select().eq("id", user.id).single();
+      const { data, error } = await supabase.from("users").select().eq("id", user.id).maybeSingle();
       if (error) {
         if (error.code === 'PGRST116') return {}; // Not found
         throw error;
       }
+      if (!data) return {}; // Handle missing profile
       return {
         firstName: data.first_name,
         lastName: data.last_name,
@@ -185,7 +187,7 @@ export default function ProfilePage() {
         username: profileData.username || "",
         email: profileData.email || "",
         phone: profileData.phone || "",
-        dob: profileData.dob ? new Date(profileData.dob).toISOString().split("T")[0] : "",
+        dob: profileData.dob || "",
         gender: profileData.gender || "Select Gender",
         language: profileData.language || "en",
         country: profileData.country || "",
@@ -245,15 +247,63 @@ export default function ProfilePage() {
 
   const profileMutation = useMutation({
     mutationFn: async (data: ProfileForm) => {
-      const updated = await apiClient.put("/profile", data);
-      return updated;
+      if (!user?.id) throw new Error("Not authenticated");
+
+      const payload = {
+        first_name: data.firstName,
+        last_name: data.lastName,
+        username: data.username,
+        phone: data.phone,
+        dob: data.dob || null, // Fix empty DOB
+        gender: data.gender,
+        language: data.language,
+        occupation: data.jobTitle,
+        company: data.company,
+        department: data.department,
+        bio: data.bio,
+        country: data.country,
+        state: data.state,
+        city: data.city,
+        postal_code: data.postalCode,
+        street_address: data.address,
+        linkedin: data.linkedin,
+        github: data.github,
+        portfolio: data.portfolio,
+        twitter: data.twitter,
+        updated_at: new Date().toISOString()
+      };
+      
+      let emailChangedMsg = "";
+      // Handle email update in Supabase Auth if it changed
+      if (data.email && data.email !== user?.email) {
+        const { error: authError } = await supabase.auth.updateUser({ email: data.email });
+        if (authError) {
+          console.error("Auth email update error:", authError);
+          throw new Error("Failed to update authentication email: " + authError.message);
+        }
+        emailChangedMsg = " A confirmation email has been sent to your new address.";
+      }
+      
+      const { data: updated, error } = await supabase
+        .from("users")
+        .update(payload)
+        .eq("id", user.id)
+        .select()
+        .maybeSingle();
+
+      if (error) {
+        console.error("Profile update error:", error);
+        throw new Error(error.message);
+      }
+      return { updated, emailChangedMsg };
     },
-    onSuccess: (data) => {
-      toast({ title: "Profile updated successfully", description: "Your changes have been saved." });
+    onSuccess: ({ updated, emailChangedMsg }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      toast({ title: "Profile updated successfully", description: "Your changes have been saved." + emailChangedMsg });
       profileForm.reset(profileForm.getValues()); // Reset dirty state
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to update profile", variant: "destructive" });
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to update profile", variant: "destructive" });
     },
   });
 
@@ -300,17 +350,52 @@ export default function ProfilePage() {
 
   const handleImageUpload = async (file: File) => {
     try {
-      const formData = new FormData();
-      formData.append("photo", file);
+      if (!user?.id) return;
       
-      const updatedUser = await apiClient.patchForm<any>("/profile/photo", formData);
-      
-      if (updatedUser.profile_image_url) {
-        setAvatarUrl(updatedUser.profile_image_url);
-        toast({ title: "Image uploaded", description: "Your profile picture has been updated." });
+      // Clean up old avatar files first
+      const { data: existingFiles } = await supabase.storage.from("avatars").list(user.id);
+      if (existingFiles && existingFiles.length > 0) {
+        const oldPaths = existingFiles.map(f => `${user.id}/${f.name}`);
+        await supabase.storage.from("avatars").remove(oldPaths);
       }
-    } catch (err) {
-      toast({ title: "Upload failed", description: "Could not upload profile picture.", variant: "destructive" });
+      
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/profile_${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, {
+          upsert: true,
+          contentType: file.type,
+        });
+        
+      if (uploadError) {
+        console.error("Profile image upload error:", uploadError);
+        throw new Error(uploadError.message);
+      }
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+        
+      const imageUrl = publicUrl;
+      
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ profile_image_url: imageUrl })
+        .eq("id", user.id);
+        
+      if (updateError) {
+        console.error("Profile image DB update error:", updateError);
+        throw new Error(updateError.message);
+      }
+      
+      setAvatarUrl(imageUrl);
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      toast({ title: "Image uploaded", description: "Your profile picture has been updated." });
+    } catch (err: any) {
+      console.error("Profile image upload error:", err);
+      toast({ title: "Upload failed", description: err.message || "Could not upload profile picture.", variant: "destructive" });
     }
   };
 
@@ -467,9 +552,32 @@ export default function ProfilePage() {
                     variant="ghost" 
                     size="sm" 
                     className="mt-6 text-destructive hover:text-destructive hover:bg-destructive/10 w-full"
-                    onClick={() => {
-                      setAvatarUrl(null);
-                      profileForm.setValue("firstName", profileForm.getValues("firstName"), { shouldDirty: true });
+                    onClick={async () => {
+                      try {
+                        if (!user?.id) return;
+                        
+                        const { data: files } = await supabase.storage.from("avatars").list(user.id);
+                        if (files && files.length > 0) {
+                          const filePaths = files.map(f => `${user.id}/${f.name}`);
+                          await supabase.storage.from("avatars").remove(filePaths);
+                        }
+                        
+                        const { error: updateError } = await supabase
+                          .from("users")
+                          .update({ profile_image_url: null })
+                          .eq("id", user.id);
+                          
+                        if (updateError) {
+                          console.error("Profile image remove error:", updateError);
+                          throw new Error(updateError.message);
+                        }
+                        
+                        setAvatarUrl(null);
+                        queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+                      } catch (err: any) {
+                        console.error("Profile image remove error:", err);
+                        toast({ title: "Remove failed", description: err.message, variant: "destructive" });
+                      }
                     }}
                   >
                     <Trash2 className="h-4 w-4 mr-2" /> Remove Picture
@@ -643,7 +751,7 @@ export default function ProfilePage() {
                       <FormField control={profileForm.control} name="gender" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Gender</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl><SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger></FormControl>
                             <SelectContent>
                               <SelectItem value="Select Gender">Select Gender</SelectItem>
@@ -658,7 +766,7 @@ export default function ProfilePage() {
                       <FormField control={profileForm.control} name="language" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Preferred Language</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl><SelectTrigger><SelectValue placeholder="Select language" /></SelectTrigger></FormControl>
                             <SelectContent>
                               <SelectItem value="en">English</SelectItem>
