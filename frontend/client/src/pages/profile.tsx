@@ -52,6 +52,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { authService } from "@/services/auth";
 import { supabase } from "@/services/supabase";
+import { apiClient } from "@/services/api";
 
 const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -244,38 +245,7 @@ export default function ProfilePage() {
 
   const profileMutation = useMutation({
     mutationFn: async (data: ProfileForm) => {
-      const payload = {
-        first_name: data.firstName,
-        last_name: data.lastName,
-        username: data.username,
-        phone: data.phone,
-        dob: data.dob || null,
-        gender: data.gender,
-        language: data.language,
-        occupation: data.jobTitle,
-        company: data.company,
-        department: data.department,
-        bio: data.bio,
-        country: data.country,
-        state: data.state,
-        city: data.city,
-        postal_code: data.postalCode,
-        street_address: data.address,
-        linkedin: data.linkedin,
-        github: data.github,
-        portfolio: data.portfolio,
-        twitter: data.twitter,
-        updated_at: new Date().toISOString()
-      };
-      
-      const { data: updated, error } = await supabase
-        .from("users")
-        .update(payload)
-        .eq("id", user?.id)
-        .select()
-        .single();
-
-      if (error) throw new Error(error.message);
+      const updated = await apiClient.put("/profile", data);
       return updated;
     },
     onSuccess: (data) => {
@@ -333,31 +303,11 @@ export default function ProfilePage() {
       const formData = new FormData();
       formData.append("photo", file);
       
-      const localToken = localStorage.getItem("token");
-      const token = session?.access_token || localToken;
+      const updatedUser = await apiClient.patchForm<any>("/profile/photo", formData);
       
-      const res = await fetch("/api/profile/photo", {
-        method: "PATCH",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: formData,
-      });
-      
-      if (!res.ok) throw new Error("Failed to upload image");
-      const data = await res.json();
-      
-      if (data.profileImageUrl) {
-        setAvatarUrl(data.profileImageUrl);
+      if (updatedUser.profile_image_url) {
+        setAvatarUrl(updatedUser.profile_image_url);
         toast({ title: "Image uploaded", description: "Your profile picture has been updated." });
-        
-        // Also update local profileData
-        if (user?.id) {
-          await supabase
-            .from("users")
-            .update({ profile_image_url: data.profileImageUrl })
-            .eq("id", user.id);
-        }
       }
     } catch (err) {
       toast({ title: "Upload failed", description: "Could not upload profile picture.", variant: "destructive" });
