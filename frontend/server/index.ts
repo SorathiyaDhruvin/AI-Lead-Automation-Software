@@ -5,8 +5,6 @@ import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { seedDatabase } from "./seed";
-import { startCronJobs } from "./cron";
 
 const app = express();
 const httpServer = createServer(app);
@@ -118,12 +116,6 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Seed database with demo data
-  await seedDatabase();
-
-  // Start background cron jobs (automation rules evaluation)
-  startCronJobs();
-
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

@@ -2,7 +2,7 @@ const pool = require("../config/db");
 
 /**
  * GET /api/health
- * Returns API health status and database connectivity.
+ * Returns API health status including DB, AI (Gemini), and Email (Resend) configuration checks.
  */
 const getHealth = async (req, res) => {
     let dbStatus = "disconnected";
@@ -12,16 +12,19 @@ const getHealth = async (req, res) => {
         if (result.rows.length > 0) {
             dbStatus = "connected";
         }
-    } catch {
-        dbStatus = "error";
+    } catch (err) {
+        console.error("[Health Check DB Error]:", err.message);
+        dbStatus = "disconnected";
     }
+
+    const aiStatus = process.env.GEMINI_API_KEY ? "configured" : "missing";
+    const emailStatus = process.env.RESEND_API_KEY ? "configured" : "missing";
 
     res.json({
         success: true,
-        message: "API is healthy",
-        timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || "development",
         database: dbStatus,
+        ai: aiStatus,
+        email: emailStatus
     });
 };
 

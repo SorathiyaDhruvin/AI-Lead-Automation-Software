@@ -26,6 +26,9 @@ const forgotPassword = asyncHandler(async (req, res) => {
         return res.json({ success: true, message: "If that email exists, an OTP has been sent." });
     }
 
+    // Invalidate previous active OTPs for this user/email
+    await passwordResetModel.invalidateAllForUser(user.email);
+
     // Generate 6 digit OTP
     const otp = crypto.randomInt(100000, 999999).toString();
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -52,10 +55,14 @@ const forgotPassword = asyncHandler(async (req, res) => {
     `;
 
     try {
-        await sendEmail(user.email, "Your Password Reset Code", emailHtml);
+        const responseData = await sendEmail(user.email, "Your Password Reset Code", emailHtml);
+        console.log(`[EMAIL] Password reset email accepted by Resend: ${responseData?.id}`);
     } catch (err) {
-        console.error("Failed to send OTP email:", err.message);
-        // Do not crash, still report success to prevent enumeration
+        console.error(`[EMAIL ERROR] ${err.message}`);
+        return res.status(500).json({ 
+            success: false, 
+            message: "Unable to send password reset email. Please try again later." 
+        });
     }
 
     res.json({ success: true, message: "If that email exists, an OTP has been sent." });

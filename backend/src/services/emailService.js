@@ -23,7 +23,10 @@ async function sendEmail(to, subject, html) {
         throw new Error("Email service is not configured. Set RESEND_API_KEY in environment variables.");
     }
 
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+    const fromEmail = process.env.RESEND_FROM_EMAIL;
+    if (!fromEmail) {
+        throw new Error("RESEND_FROM_EMAIL is not configured in environment variables.");
+    }
     
     try {
         const { data, error } = await client.emails.send({

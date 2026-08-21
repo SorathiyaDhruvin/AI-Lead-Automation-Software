@@ -2,6 +2,14 @@ const pool = require("../config/db");
 const { v4: uuidv4 } = require("uuid");
 
 const passwordResetModel = {
+    async invalidateAllForUser(email) {
+        await pool.query(
+            `UPDATE password_resets SET used = true 
+             WHERE email = $1 AND used = false`,
+            [email.toLowerCase()]
+        );
+    },
+
     async create({ userId, email, otp, otpExpiresAt }) {
         const id = uuidv4();
         const { rows } = await pool.query(
