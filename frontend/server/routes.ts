@@ -243,7 +243,7 @@ export async function registerRoutes(
 
   app.get("/api/leads/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
-      const lead = await storage.getLead(req.params.id);
+      const lead = await storage.getLead((req.params.id as string));
       if (!lead) {
         return res.status(404).json({ message: "Lead not found" });
       }
@@ -292,7 +292,7 @@ export async function registerRoutes(
   app.put("/api/leads/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
-      const leadId = req.params.id as string;
+      const leadId = (req.params.id as string) as string;
       const existing = await storage.getLead(leadId);
       if (!existing) {
         return res.status(404).json({ message: "Lead not found" });
@@ -328,7 +328,7 @@ export async function registerRoutes(
 
   app.delete("/api/leads/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
-      await storage.deleteLead(req.params.id);
+      await storage.deleteLead((req.params.id as string));
       res.status(204).send();
     } catch (error) {
       console.error("Delete lead error:", error);
@@ -340,7 +340,7 @@ export async function registerRoutes(
   app.post("/api/leads/:id/score", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
-      const lead = await storage.getLead(req.params.id);
+      const lead = await storage.getLead((req.params.id as string));
       if (!lead) {
         return res.status(404).json({ message: "Lead not found" });
       }
@@ -379,10 +379,10 @@ export async function registerRoutes(
   app.get("/api/leads/:id/notes", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
-      const lead = await storage.getLead(req.params.id);
+      const lead = await storage.getLead((req.params.id as string));
       if (!lead) return res.status(404).json({ message: "Lead not found" });
       if (lead.userId !== userId) return res.status(403).json({ message: "Access denied" });
-      const notes = await storage.getNotesByLead(req.params.id);
+      const notes = await storage.getNotesByLead((req.params.id as string));
       res.json(notes);
     } catch (error) {
       console.error("Get notes error:", error);
@@ -393,18 +393,18 @@ export async function registerRoutes(
   app.post("/api/leads/:id/notes", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
-      const lead = await storage.getLead(req.params.id);
+      const lead = await storage.getLead((req.params.id as string));
       if (!lead) {
         return res.status(404).json({ message: "Lead not found" });
       }
       if (lead.userId !== userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      const data = insertLeadNoteSchema.parse({ leadId: req.params.id, userId, text: req.body.text });
+      const data = insertLeadNoteSchema.parse({ leadId: (req.params.id as string), userId, text: req.body.text });
       const note = await storage.createNote(data);
       // Auto-log note activity
       await storage.createActivity({
-        leadId: req.params.id,
+        leadId: (req.params.id as string),
         userId,
         type: "note_added",
         description: req.body.text.length > 80 ? req.body.text.slice(0, 80) + "…" : req.body.text,
@@ -423,7 +423,7 @@ export async function registerRoutes(
   app.post("/api/leads/:id/send-email", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
-      const lead = await storage.getLead(req.params.id);
+      const lead = await storage.getLead((req.params.id as string));
       if (!lead) return res.status(404).json({ message: "Lead not found" });
       if (lead.userId !== userId) return res.status(403).json({ message: "Access denied" });
 
@@ -457,10 +457,10 @@ export async function registerRoutes(
   app.get("/api/leads/:id/activity", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
-      const lead = await storage.getLead(req.params.id);
+      const lead = await storage.getLead((req.params.id as string));
       if (!lead) return res.status(404).json({ message: "Lead not found" });
       if (lead.userId !== userId) return res.status(403).json({ message: "Access denied" });
-      const activities = await storage.getActivitiesByLead(req.params.id);
+      const activities = await storage.getActivitiesByLead((req.params.id as string));
       res.json(activities);
     } catch (error) {
       console.error("Get activity error:", error);
@@ -505,7 +505,7 @@ export async function registerRoutes(
   app.delete("/api/automation/rules/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
-      const deleted = await storage.deleteAutomationRule(req.params.id, userId);
+      const deleted = await storage.deleteAutomationRule((req.params.id as string), userId);
       if (!deleted) return res.status(404).json({ message: "Rule not found" });
       res.status(204).send();
     } catch (error) {
@@ -518,7 +518,7 @@ export async function registerRoutes(
     try {
       const userId = (req as any).userId;
       const { isActive } = req.body;
-      const rule = await storage.toggleAutomationRule(req.params.id, Boolean(isActive), userId);
+      const rule = await storage.toggleAutomationRule((req.params.id as string), Boolean(isActive), userId);
       if (!rule) return res.status(404).json({ message: "Rule not found" });
       res.json(rule);
     } catch (error) {
@@ -563,7 +563,7 @@ export async function registerRoutes(
 
   app.patch("/api/segments/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
-      const segment = await storage.updateSegment(req.params.id, req.body);
+      const segment = await storage.updateSegment((req.params.id as string), req.body);
       if (!segment) {
         return res.status(404).json({ message: "Segment not found" });
       }
@@ -576,7 +576,7 @@ export async function registerRoutes(
 
   app.delete("/api/segments/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
-      await storage.deleteSegment(req.params.id);
+      await storage.deleteSegment((req.params.id as string));
       res.status(204).send();
     } catch (error) {
       console.error("Delete segment error:", error);
@@ -688,7 +688,7 @@ export async function registerRoutes(
   app.get("/api/lead-requests/:id", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
-      const request = await storage.getLeadRequest(req.params.id);
+      const request = await storage.getLeadRequest((req.params.id as string));
       
       if (!request) {
         return res.status(404).json({ message: "Lead request not found" });
@@ -722,12 +722,12 @@ export async function registerRoutes(
       const adminId = (req as any).userId;
       const data = updateLeadRequestSchema.parse(req.body);
       
-      const request = await storage.getLeadRequest(req.params.id);
+      const request = await storage.getLeadRequest((req.params.id as string));
       if (!request) {
         return res.status(404).json({ message: "Lead request not found" });
       }
 
-      const updated = await storage.updateLeadRequest(req.params.id, {
+      const updated = await storage.updateLeadRequest((req.params.id as string), {
         ...data,
         reviewedBy: adminId,
         reviewedAt: new Date(),
@@ -776,7 +776,7 @@ export async function registerRoutes(
   app.patch("/api/notifications/:id/read", authMiddleware as RequestHandler, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId;
-      const notif = await storage.markNotificationRead(req.params.id, userId);
+      const notif = await storage.markNotificationRead((req.params.id as string), userId);
       if (!notif) return res.status(404).json({ message: "Notification not found" });
       res.json(notif);
     } catch (error) {

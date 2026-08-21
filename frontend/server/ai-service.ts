@@ -16,7 +16,7 @@ interface SegmentResult {
 
 function getOpenAIClient() {
   const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-  const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || "https://api.x.ai/v1";
   
   if (!apiKey) {
     return null;
@@ -117,7 +117,7 @@ Respond in JSON format:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "grok-beta",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 500,
@@ -218,7 +218,7 @@ Use these colors: #0066FF, #6C5CE7, #00D68F, #FFB946, #FF6B6B, #4ECDC4`;
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "grok-beta",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 1000,
