@@ -66,6 +66,11 @@ export const leads = pgTable("leads", {
   aiPrediction: text("ai_prediction"),
   aiInsights: text("ai_insights"),
   aiRecommendedAction: text("ai_recommended_action"),
+  aiRating: varchar("ai_rating", { length: 50 }),
+  aiReason: text("ai_reason"),
+  aiStrengths: text("ai_strengths"),
+  aiWeaknesses: text("ai_weaknesses"),
+  aiRecommendation: text("ai_recommendation"),
   segmentId: varchar("segment_id"),
   notes: text("notes"),
   lastContact: timestamp("last_contact"),
@@ -169,6 +174,11 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
   aiPrediction: true,
   aiInsights: true,
   aiRecommendedAction: true,
+  aiRating: true,
+  aiReason: true,
+  aiStrengths: true,
+  aiWeaknesses: true,
+  aiRecommendation: true,
 });
 
 export const insertSegmentSchema = createInsertSchema(segments).omit({

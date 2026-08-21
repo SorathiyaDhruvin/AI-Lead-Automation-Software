@@ -28,57 +28,7 @@ function getOpenAIClient() {
 }
 
 function calculateFallbackScore(lead: Lead): ScoreResult {
-  const baseScore = 40;
-  const hasCompany = lead.company ? 15 : 0;
-  const hasPhone = lead.phone ? 10 : 0;
-  const hasNotes = lead.notes ? 5 : 0;
-  
-  const sourceBonus = {
-    referral: 15,
-    website: 10,
-    social: 8,
-    email: 7,
-    ads: 6,
-    event: 5,
-    other: 3,
-  }[lead.source] || 5;
-
-  const statusBonus = {
-    negotiation: 15,
-    proposal: 12,
-    qualified: 10,
-    contacted: 5,
-    new: 0,
-    lost: -20,
-  }[lead.status] || 0;
-
-  const score = Math.min(100, Math.max(0, baseScore + hasCompany + hasPhone + hasNotes + sourceBonus + statusBonus));
-
-  let category: string;
-  let prediction: string;
-  let recommendedAction: string;
-
-  if (score >= 70) {
-    category = "Hot";
-    prediction = "Based on available information, this lead shows strong potential for conversion.";
-    recommendedAction = "Schedule a discovery call within 24 hours and prepare a tailored proposal.";
-  } else if (score >= 40) {
-    category = "Warm";
-    prediction = "Based on available information, this lead shows moderate potential with room for nurturing.";
-    recommendedAction = "Send a personalized follow-up email with relevant case studies and check in next week.";
-  } else {
-    category = "Cold";
-    prediction = "Based on available information, this lead shows early-stage interest requiring further engagement.";
-    recommendedAction = "Add to nurturing sequence. Share educational content and re-evaluate in 30 days.";
-  }
-
-  return {
-    score,
-    category,
-    prediction,
-    insights: "Score calculated using lead attributes. Enable AI integration for deeper insights.",
-    recommendedAction,
-  };
+  throw new Error("AI Scoring requires a valid AI provider configuration. Mock/fallback data has been disabled in production.");
 }
 
 export async function scoreLead(lead: Lead): Promise<ScoreResult> {
@@ -152,38 +102,9 @@ export async function segmentLeads(leads: Lead[]): Promise<Map<string, SegmentRe
 
   const openai = getOpenAIClient();
   
-  // If no AI available, use rule-based segmentation
+  // If no AI available, throw error instead of rule-based
   if (!openai) {
-    const segmentMap = new Map<string, SegmentResult>();
-    
-    for (const lead of leads) {
-      const score = lead.aiScore || 50;
-      let segment: SegmentResult;
-      
-      if (score >= 70) {
-        segment = {
-          segmentName: "Hot Leads",
-          segmentColor: "#00D68F",
-          description: "High-scoring leads ready for conversion",
-        };
-      } else if (score >= 40) {
-        segment = {
-          segmentName: "Warm Leads",
-          segmentColor: "#FFB946",
-          description: "Leads with moderate potential requiring nurturing",
-        };
-      } else {
-        segment = {
-          segmentName: "Cold Leads",
-          segmentColor: "#6C5CE7",
-          description: "Early-stage leads needing engagement",
-        };
-      }
-      
-      segmentMap.set(lead.id, segment);
-    }
-    
-    return segmentMap;
+    throw new Error("AI Auto-Segmentation requires a valid AI provider configuration. Mock data disabled.");
   }
 
   const leadSummary = leads.map((l) => ({

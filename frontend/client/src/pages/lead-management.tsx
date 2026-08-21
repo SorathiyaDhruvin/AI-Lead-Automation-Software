@@ -28,6 +28,8 @@ import {
   Download,
   Zap,
   Target,
+  Brain,
+  Lightbulb,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -224,8 +226,9 @@ export default function LeadManagementPage() {
       if (detailLead) setDetailLead(data as Lead);
       toast({ title: "Lead Scored", description: "AI scoring complete" });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to score lead", variant: "destructive" });
+    onError: (error: any) => {
+      const message = error.response?.data?.message || error.message || "Failed to score lead";
+      toast({ title: "Error", description: message, variant: "destructive" });
     },
   });
 
@@ -638,43 +641,81 @@ export default function LeadManagementPage() {
                     </div>
                   </div>
 
-                  {detailLead.aiScore !== null && (
+                  {detailLead.aiScore !== null && detailLead.aiScore !== undefined && (
                     <Card className="bg-gradient-to-br from-primary/5 to-secondary/5">
                       <CardContent className="pt-4">
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center gap-2">
                             <Sparkles className="h-4 w-4 text-primary" />
                             <span className="font-medium">AI Score</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            {detailLead.aiCategory && (
+                            {detailLead.aiRating && (
                               <Badge
                                 variant="outline"
                                 className={
-                                  detailLead.aiCategory === "Hot"
+                                  detailLead.aiRating.toLowerCase() === "high"
                                     ? "bg-red-100 text-red-700 border-red-200"
-                                    : detailLead.aiCategory === "Warm"
+                                    : detailLead.aiRating.toLowerCase() === "medium"
                                     ? "bg-amber-100 text-amber-700 border-amber-200"
                                     : "bg-sky-100 text-sky-700 border-sky-200"
                                 }
-                                data-testid="badge-ai-category"
                               >
-                                {detailLead.aiCategory}
+                                {detailLead.aiRating.charAt(0).toUpperCase() + detailLead.aiRating.slice(1)}
                               </Badge>
                             )}
                             <Badge className={getScoreColor(detailLead.aiScore)}>{detailLead.aiScore}/100</Badge>
                           </div>
                         </div>
-                        {detailLead.aiPrediction && (
-                          <p className="text-sm text-muted-foreground mb-2" data-testid="text-ai-prediction">{detailLead.aiPrediction}</p>
+
+                        {detailLead.aiReason && (
+                          <div className="mb-4">
+                            <p className="text-xs font-semibold text-muted-foreground mb-1 uppercase tracking-wider">Reason</p>
+                            <p className="text-sm text-foreground">{detailLead.aiReason}</p>
+                          </div>
                         )}
-                        {detailLead.aiInsights && (
-                          <p className="text-xs text-muted-foreground mb-2" data-testid="text-ai-insights">{detailLead.aiInsights}</p>
-                        )}
-                        {detailLead.aiRecommendedAction && (
-                          <div className="mt-2 p-2 rounded-md bg-primary/5 border border-primary/10">
-                            <p className="text-xs font-medium text-primary mb-1">Recommended Action</p>
-                            <p className="text-xs text-muted-foreground" data-testid="text-recommended-action">{detailLead.aiRecommendedAction}</p>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          {detailLead.aiStrengths && (
+                            <div>
+                              <p className="text-xs font-semibold text-success mb-1 flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Strengths</p>
+                              <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-1">
+                                {(() => {
+                                  try {
+                                    const strengths = typeof detailLead.aiStrengths === 'string' ? JSON.parse(detailLead.aiStrengths) : detailLead.aiStrengths;
+                                    return Array.isArray(strengths) ? strengths.map((s: string, i: number) => <li key={i}>{s}</li>) : <li>{String(detailLead.aiStrengths)}</li>;
+                                  } catch (e) {
+                                    return <li>{String(detailLead.aiStrengths)}</li>;
+                                  }
+                                })()}
+                              </ul>
+                            </div>
+                          )}
+                          
+                          {detailLead.aiWeaknesses && (
+                            <div>
+                              <p className="text-xs font-semibold text-destructive mb-1 flex items-center gap-1"><Brain className="h-3 w-3" /> Weaknesses</p>
+                              <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-1">
+                                {(() => {
+                                  try {
+                                    const weaknesses = typeof detailLead.aiWeaknesses === 'string' ? JSON.parse(detailLead.aiWeaknesses) : detailLead.aiWeaknesses;
+                                    return Array.isArray(weaknesses) ? weaknesses.map((w: string, i: number) => <li key={i}>{w}</li>) : <li>{String(detailLead.aiWeaknesses)}</li>;
+                                  } catch (e) {
+                                    return <li>{String(detailLead.aiWeaknesses)}</li>;
+                                  }
+                                })()}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+
+                        {detailLead.aiRecommendation && (
+                          <div className="mt-2 p-3 rounded-md bg-primary/5 border border-primary/10">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Lightbulb className="h-4 w-4 text-amber-500" />
+                              <p className="text-xs font-medium text-primary">Recommended Action</p>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{detailLead.aiRecommendation}</p>
                           </div>
                         )}
                       </CardContent>

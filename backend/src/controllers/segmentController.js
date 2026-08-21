@@ -61,8 +61,10 @@ const autoSegment = asyncHandler(async (req, res) => {
         ${JSON.stringify(leadData)}
         `;
 
+        const modelConfig = process.env.AI_MODEL || "grok-4.6";
+
         const response = await ai.chat.completions.create({
-            model: "grok-2-latest",
+            model: modelConfig,
             messages: [{ role: "user", content: prompt }],
             response_format: { type: "json_object" },
         });

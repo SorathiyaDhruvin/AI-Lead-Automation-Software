@@ -186,7 +186,7 @@ const scoreLead = asyncHandler(async (req, res) => {
 
     try {
         const prompt = `
-        Evaluate this lead and provide a score from 0 to 100 based on their potential to convert.
+        Evaluate this lead and provide a score and detailed insights based on their potential to convert.
         Lead Data:
         Name: ${existing.name}
         Email: ${existing.email}
@@ -196,37 +196,53 @@ const scoreLead = asyncHandler(async (req, res) => {
         Status: ${existing.status}
         Notes: ${existing.notes || "None"}
 
-        Respond strictly with JSON in the following format:
+        Respond strictly with JSON in the following exact format:
         {
-          "score": <number between 0-100>,
-          "reason": "<short explanation>"
+          "score": <integer from 0 to 100>,
+          "rating": "<one of: low, medium, high>",
+          "reason": "<short explanation of the score>",
+          "strengths": ["<strength 1>", "<strength 2>"],
+          "weaknesses": ["<weakness 1>"],
+          "recommendation": "<specific recommended action>"
         }
         `;
 
+        const modelConfig = process.env.AI_MODEL || "grok-4.6";
+
         const response = await ai.chat.completions.create({
-            model: "grok-2-latest",
+            model: modelConfig,
             messages: [{ role: "user", content: prompt }],
             response_format: { type: "json_object" },
         });
 
-        const aiResponse = JSON.parse(response.choices[0].message.content);
-        const score = typeof aiResponse.score === "number" ? aiResponse.score : parseInt(aiResponse.score);
-        const reason = aiResponse.reason || "AI evaluation completed.";
-
-        if (isNaN(score) || score < 0 || score > 100) {
-            throw new Error("AI returned an invalid score.");
+        if (!response.choices || !response.choices[0] || !response.choices[0].message) {
+            throw new Error("AI provider returned an empty or invalid response.");
         }
+
+        const aiResponse = JSON.parse(response.choices[0].message.content);
+        const score = parseInt(aiResponse.score);
+        
+        if (isNaN(score) || score < 0 || score > 100) {
+            throw new Error("AI returned an invalid score: " + aiResponse.score);
+        }
+
+        const validRatings = ["low", "medium", "high"];
+        const rating = validRatings.includes(aiResponse.rating) ? aiResponse.rating : "medium";
 
         const updatedLead = await leadModel.update(existing.id, {
             ai_score: score,
-            ai_insights: reason,
+            ai_rating: rating,
+            ai_reason: aiResponse.reason || "AI evaluation completed.",
+            ai_strengths: JSON.stringify(aiResponse.strengths || []),
+            ai_weaknesses: JSON.stringify(aiResponse.weaknesses || []),
+            ai_recommendation: aiResponse.recommendation || "Follow up with the lead."
         });
 
         activityModel.create({
             leadId: existing.id,
             userId: req.userId,
             type: "scored",
-            description: `AI scored lead at ${score}/100. Reason: ${reason}`,
+            description: `AI scored lead at ${score}/100. Rating: ${rating}.`,
         }).catch(err => console.error("Activity log error:", err));
 
         res.json({
@@ -236,7 +252,25 @@ const scoreLead = asyncHandler(async (req, res) => {
 
     } catch (error) {
         console.error("AI Scoring Error:", error);
-        res.status(500).json({ success: false, message: "Failed to score lead. " + error.message });
+        
+        let statusCode = 500;
+        let errorMessage = "Failed to score lead. " + error.message;
+
+        if (error.status === 401) {
+            statusCode = 401;
+            errorMessage = "AI API key is invalid or missing.";
+        } else if (error.status === 429) {
+            statusCode = 429;
+            errorMessage = "AI rate limit reached.";
+        } else if (error.status === 400) {
+            statusCode = 400;
+            errorMessage = "AI request is invalid. " + error.message;
+        } else if (error.message.includes("JSON")) {
+            statusCode = 500;
+            errorMessage = "AI returned malformed JSON data.";
+        }
+
+        res.status(statusCode).json({ success: false, message: errorMessage });
     }
 });
 

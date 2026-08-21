@@ -101,8 +101,9 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
         description: `Lead scored ${updatedLead.aiScore}/100 — categorized as ${updatedLead.aiCategory}`,
       });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to score lead", variant: "destructive" });
+    onError: (error: any) => {
+      const message = error.response?.data?.message || error.message || "Failed to score lead";
+      toast({ title: "Error", description: message, variant: "destructive" });
     },
   });
 
@@ -254,7 +255,7 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
               </div>
             </div>
 
-            {(displayedLead.aiPrediction || displayedLead.aiInsights || displayedLead.aiRecommendedAction) && (
+            {(displayedLead.aiRating || displayedLead.aiReason || displayedLead.aiStrengths || displayedLead.aiRecommendation) && (
               <Card className="bg-gradient-to-br from-primary/5 to-secondary/5 border-primary/20">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
@@ -262,25 +263,57 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {displayedLead.aiPrediction && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <TrendingUp className="h-4 w-4 text-success" />
-                        <span className="text-sm font-medium">Prediction</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground" data-testid="text-ai-prediction">{displayedLead.aiPrediction}</p>
+                  {displayedLead.aiRating && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp className="h-4 w-4 text-success" />
+                      <span className="text-sm font-medium">Rating: </span>
+                      <Badge variant="outline" className={
+                        displayedLead.aiRating.toLowerCase() === "high" ? "bg-red-100 text-red-700" :
+                        displayedLead.aiRating.toLowerCase() === "medium" ? "bg-amber-100 text-amber-700" :
+                        "bg-sky-100 text-sky-700"
+                      }>
+                        {displayedLead.aiRating.charAt(0).toUpperCase() + displayedLead.aiRating.slice(1)}
+                      </Badge>
                     </div>
                   )}
-                  {displayedLead.aiInsights && (
+                  {displayedLead.aiReason && (
                     <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Sparkles className="h-4 w-4 text-secondary" />
-                        <span className="text-sm font-medium">Analysis</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground" data-testid="text-ai-insights">{displayedLead.aiInsights}</p>
+                      <p className="text-sm text-muted-foreground">{displayedLead.aiReason}</p>
                     </div>
                   )}
-                  {displayedLead.aiRecommendedAction && (
+                  <div className="grid grid-cols-2 gap-4 my-4">
+                    {displayedLead.aiStrengths && (
+                      <div>
+                        <p className="text-xs font-semibold text-success mb-1">Strengths</p>
+                        <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-1">
+                          {(() => {
+                            try {
+                              const strengths = typeof displayedLead.aiStrengths === 'string' ? JSON.parse(displayedLead.aiStrengths) : displayedLead.aiStrengths;
+                              return Array.isArray(strengths) ? strengths.map((s: string, i: number) => <li key={i}>{s}</li>) : <li>{String(displayedLead.aiStrengths)}</li>;
+                            } catch (e) {
+                              return <li>{String(displayedLead.aiStrengths)}</li>;
+                            }
+                          })()}
+                        </ul>
+                      </div>
+                    )}
+                    {displayedLead.aiWeaknesses && (
+                      <div>
+                        <p className="text-xs font-semibold text-destructive mb-1">Weaknesses</p>
+                        <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-1">
+                          {(() => {
+                            try {
+                              const weaknesses = typeof displayedLead.aiWeaknesses === 'string' ? JSON.parse(displayedLead.aiWeaknesses) : displayedLead.aiWeaknesses;
+                              return Array.isArray(weaknesses) ? weaknesses.map((w: string, i: number) => <li key={i}>{w}</li>) : <li>{String(displayedLead.aiWeaknesses)}</li>;
+                            } catch (e) {
+                              return <li>{String(displayedLead.aiWeaknesses)}</li>;
+                            }
+                          })()}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                  {displayedLead.aiRecommendation && (
                     <div className="rounded-md bg-primary/5 border border-primary/10 p-3">
                       <div className="flex items-center gap-2 mb-1">
                         <Lightbulb className="h-4 w-4 text-amber-500" />
@@ -288,8 +321,8 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
                       </div>
                       <div className="flex items-start gap-2">
                         <ArrowRight className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                        <p className="text-sm text-muted-foreground" data-testid="text-recommended-action">
-                          {displayedLead.aiRecommendedAction}
+                        <p className="text-sm text-muted-foreground">
+                          {displayedLead.aiRecommendation}
                         </p>
                       </div>
                     </div>

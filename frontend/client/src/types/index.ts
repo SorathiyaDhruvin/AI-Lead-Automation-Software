@@ -45,6 +45,11 @@ export interface Lead {
   aiPrediction: string | null;
   aiInsights: string | null;
   aiRecommendedAction: string | null;
+  aiRating: string | null;
+  aiReason: string | null;
+  aiStrengths: any | null;
+  aiWeaknesses: any | null;
+  aiRecommendation: string | null;
   segmentId: string | null;
   notes: string | null;
   lastContact: string | null;
