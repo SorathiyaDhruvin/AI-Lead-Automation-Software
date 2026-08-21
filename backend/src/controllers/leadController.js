@@ -3,10 +3,18 @@ const activityModel = require("../models/activityModel");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { OpenAI } = require("openai");
 
-const ai = new OpenAI({
-    apiKey: process.env.GEMINI_API_KEY,
-    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-});
+let _ai = null;
+function getAI() {
+    if (!_ai) {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) return null;
+        _ai = new OpenAI({
+            apiKey,
+            baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+        });
+    }
+    return _ai;
+}
 
 /**
  * GET /api/leads
@@ -180,8 +188,9 @@ const scoreLead = asyncHandler(async (req, res) => {
         return res.status(403).json({ success: false, message: "Access denied" });
     }
 
-    if (!ai.apiKey) {
-        return res.status(500).json({ success: false, message: "Gemini API key is not configured on the server." });
+    const ai = getAI();
+    if (!ai) {
+        return res.status(500).json({ success: false, message: "Gemini API key is not configured on the server. Set GEMINI_API_KEY in environment variables." });
     }
 
     try {
