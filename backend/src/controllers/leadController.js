@@ -1,10 +1,10 @@
 const leadModel = require("../models/leadModel");
 const activityModel = require("../models/activityModel");
 const { asyncHandler } = require("../middleware/errorHandler");
-const { OpenAI } = require("openai");
+const { GoogleGenAI } = require("@google/genai");
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
 });
 
 /**
@@ -179,8 +179,8 @@ const scoreLead = asyncHandler(async (req, res) => {
         return res.status(403).json({ success: false, message: "Access denied" });
     }
 
-    if (!openai.apiKey) {
-        return res.status(500).json({ success: false, message: "OpenAI API key is not configured on the server." });
+    if (!ai.apiKey) {
+        return res.status(500).json({ success: false, message: "Gemini API key is not configured on the server." });
     }
 
     try {
@@ -202,13 +202,15 @@ const scoreLead = asyncHandler(async (req, res) => {
         }
         `;
 
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini", // Fallback to a fast, cheap model
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" },
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+            }
         });
 
-        const aiResponse = JSON.parse(response.choices[0].message.content);
+        const aiResponse = JSON.parse(response.text);
         const score = typeof aiResponse.score === "number" ? aiResponse.score : parseInt(aiResponse.score);
         const reason = aiResponse.reason || "AI evaluation completed.";
 

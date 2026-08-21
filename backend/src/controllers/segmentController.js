@@ -1,10 +1,10 @@
 const segmentModel = require("../models/segmentModel");
 const leadModel = require("../models/leadModel");
 const { asyncHandler } = require("../middleware/errorHandler");
-const { OpenAI } = require("openai");
+const { GoogleGenAI } = require("@google/genai");
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
 });
 
 /**
@@ -21,8 +21,8 @@ const getSegments = asyncHandler(async (req, res) => {
  * Auto-segment all leads using AI.
  */
 const autoSegment = asyncHandler(async (req, res) => {
-    if (!openai.apiKey) {
-        return res.status(500).json({ success: false, message: "OpenAI API key is not configured on the server." });
+    if (!ai.apiKey) {
+        return res.status(500).json({ success: false, message: "Gemini API key is not configured on the server." });
     }
 
     const leads = await leadModel.getByUser(req.userId);
@@ -60,13 +60,15 @@ const autoSegment = asyncHandler(async (req, res) => {
         ${JSON.stringify(leadData)}
         `;
 
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" },
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+            }
         });
 
-        const aiResponse = JSON.parse(response.choices[0].message.content);
+        const aiResponse = JSON.parse(response.text);
         if (!aiResponse.segments || !Array.isArray(aiResponse.segments)) {
             throw new Error("Invalid AI response format.");
         }
