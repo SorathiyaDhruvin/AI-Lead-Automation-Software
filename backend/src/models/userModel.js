@@ -6,7 +6,7 @@ const userModel = {
      */
     async getAll() {
         const { rows } = await pool.query(
-            `SELECT id, email, name, role, created_at
+            `SELECT id, email, first_name, last_name, role, created_at
              FROM users
              ORDER BY created_at DESC`
         );
@@ -38,12 +38,12 @@ const userModel = {
     /**
      * Create a new user. Returns the created user (with id, without password).
      */
-    async create({ email, password, name, role = "user" }) {
+    async create({ email, password, firstName, lastName, role = "user" }) {
         const { rows } = await pool.query(
-            `INSERT INTO users (email, password, name, role)
-             VALUES ($1, $2, $3, $4)
-             RETURNING id, email, name, role, created_at`,
-            [email, password, name, role]
+            `INSERT INTO users (email, password, first_name, last_name, role)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id, email, first_name, last_name, role, created_at`,
+            [email, password, firstName || null, lastName || null, role]
         );
         return rows[0];
     },
@@ -52,7 +52,13 @@ const userModel = {
      * Update user fields. Only updates provided fields.
      */
     async update(id, fields) {
-        const allowed = ["email", "password", "name", "role"];
+        const allowed = [
+            "email", "password", "first_name", "last_name", "username", "phone", 
+            "dob", "gender", "language", "occupation", "company", "department", 
+            "bio", "country", "state", "city", "postal_code", "street_address", 
+            "linkedin", "github", "portfolio", "twitter", "website", 
+            "profile_image_url", "role"
+        ];
         const updates = [];
         const values = [];
         let paramIndex = 1;
@@ -67,11 +73,14 @@ const userModel = {
 
         if (updates.length === 0) return null;
 
+        // Always bump updated_at
+        updates.push(`updated_at = NOW()`);
+
         values.push(id);
         const { rows } = await pool.query(
             `UPDATE users SET ${updates.join(", ")}
              WHERE id = $${paramIndex}
-             RETURNING id, email, name, role, created_at`,
+             RETURNING *`,
             values
         );
         return rows[0] || null;

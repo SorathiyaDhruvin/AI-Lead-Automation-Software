@@ -71,23 +71,41 @@ const leadModel = {
         return rows[0];
     },
 
-    /**
-     * Update a lead. Only updates provided fields.
-     */
     async update(id, fields) {
-        const allowed = [
-            "name", "email", "company", "phone", "source", "status",
-            "ai_score", "ai_category", "ai_prediction", "ai_insights",
-            "ai_recommended_action", "segment_id", "notes", "last_contact",
-        ];
+        // Map frontend camelCase to database snake_case
+        const fieldMapping = {
+            name: "name",
+            email: "email",
+            company: "company",
+            phone: "phone",
+            source: "source",
+            status: "status",
+            aiScore: "ai_score",
+            aiCategory: "ai_category",
+            aiPrediction: "ai_prediction",
+            aiInsights: "ai_insights",
+            aiRecommendedAction: "ai_recommended_action",
+            segmentId: "segment_id",
+            notes: "notes",
+            lastContact: "last_contact",
+            // Also allow snake_case directly
+            ai_score: "ai_score",
+            ai_category: "ai_category",
+            ai_prediction: "ai_prediction",
+            ai_insights: "ai_insights",
+            ai_recommended_action: "ai_recommended_action",
+            segment_id: "segment_id",
+            last_contact: "last_contact",
+        };
+
         const updates = [];
         const values = [];
         let paramIndex = 1;
 
-        for (const key of allowed) {
-            if (fields[key] !== undefined) {
-                updates.push(`${key} = $${paramIndex}`);
-                values.push(fields[key]);
+        for (const [inputKey, dbColumn] of Object.entries(fieldMapping)) {
+            if (fields[inputKey] !== undefined) {
+                updates.push(`${dbColumn} = $${paramIndex}`);
+                values.push(fields[inputKey]);
                 paramIndex++;
             }
         }

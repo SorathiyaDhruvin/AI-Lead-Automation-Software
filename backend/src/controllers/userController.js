@@ -1,93 +1,25 @@
 const userModel = require("../models/userModel");
-const { generateToken, hashPassword, comparePassword } = require("../middleware/auth");
 const { asyncHandler } = require("../middleware/errorHandler");
 
 /**
  * POST /api/users/register
- * Register a new user with email + password.
+ * Legacy register endpoint (deprecated)
  */
 const register = asyncHandler(async (req, res) => {
-    const { email, password, name } = req.body;
-
-    if (!email || !password || !name) {
-        return res.status(400).json({
-            success: false,
-            message: "Email, password, and name are required",
-        });
-    }
-
-    if (password.length < 8) {
-        return res.status(400).json({
-            success: false,
-            message: "Password must be at least 8 characters",
-        });
-    }
-
-    // Check if email already exists
-    const existing = await userModel.getByEmail(email);
-    if (existing) {
-        return res.status(409).json({
-            success: false,
-            message: "Email already registered",
-        });
-    }
-
-    const hashedPassword = await hashPassword(password);
-    const user = await userModel.create({
-        email,
-        password: hashedPassword,
-        name,
-        role: "user",
-    });
-
-    const token = generateToken(user);
-
-    res.status(201).json({
-        success: true,
-        message: "User registered successfully",
-        data: { token, user },
+    return res.status(400).json({
+        success: false,
+        message: "Registration is now handled via Supabase Auth.",
     });
 });
 
 /**
  * POST /api/users/login
- * Login with email + password.
+ * Legacy login endpoint (deprecated)
  */
 const login = asyncHandler(async (req, res) => {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(400).json({
-            success: false,
-            message: "Email and password are required",
-        });
-    }
-
-    const user = await userModel.getByEmail(email);
-    if (!user) {
-        return res.status(401).json({
-            success: false,
-            message: "Invalid email or password",
-        });
-    }
-
-    const isValid = await comparePassword(password, user.password);
-    if (!isValid) {
-        return res.status(401).json({
-            success: false,
-            message: "Invalid email or password",
-        });
-    }
-
-    const token = generateToken(user);
-
-    // Return user without password
-    const { password: _, ...userWithoutPassword } = user;
-
-    res.json({
-        success: true,
-        message: "Login successful",
-        data: { token, user: userWithoutPassword },
+    return res.status(400).json({
+        success: false,
+        message: "Login is now handled via Supabase Auth.",
     });
 });
 

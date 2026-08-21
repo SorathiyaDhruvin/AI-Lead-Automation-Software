@@ -10,6 +10,7 @@ const userRoutes = require("./routes/userRoutes");
 const leadRoutes = require("./routes/leadRoutes");
 const activityRoutes = require("./routes/activityRoutes");
 const aiSuggestionRoutes = require("./routes/aiSuggestionRoutes");
+const profileRoutes = require("./routes/profileRoutes");
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/leads", leadRoutes);
 app.use("/api/activities", activityRoutes);
 app.use("/api/ai-suggestions", aiSuggestionRoutes);
+app.use("/api/profile", profileRoutes);
 
 // ── Root route ──
 app.get("/", (req, res) => {

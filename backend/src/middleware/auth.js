@@ -1,38 +1,18 @@
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
+const { createClient } = require("@supabase/supabase-js");
 
-const JWT_SECRET = process.env.JWT_SECRET || "leadflow-default-secret-change-me";
-const JWT_EXPIRES_IN = "7d";
+// Initialize Supabase client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
 
-// --- Helper functions ---
+if (!supabaseUrl || !supabaseKey) {
+    console.warn("⚠️ SUPABASE_URL or SUPABASE_SECRET_KEY not provided. Authentication may fail.");
+}
 
-const generateToken = (user) => {
-    return jwt.sign(
-        { userId: user.id, email: user.email, role: user.role },
-        JWT_SECRET,
-        { expiresIn: JWT_EXPIRES_IN }
-    );
-};
-
-const verifyToken = (token) => {
-    try {
-        return jwt.verify(token, JWT_SECRET);
-    } catch {
-        return null;
-    }
-};
-
-const hashPassword = async (password) => {
-    return bcrypt.hash(password, 10);
-};
-
-const comparePassword = async (password, hash) => {
-    return bcrypt.compare(password, hash);
-};
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 // --- Middleware ---
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -45,61 +25,52 @@ const authMiddleware = (req, res, next) => {
     const token = authHeader.substring(7);
     
     try {
-        // Use SUPABASE_JWT_SECRET if available, fallback to local for dev
-        const secret = process.env.SUPABASE_JWT_SECRET || JWT_SECRET;
-        const decoded = jwt.verify(token, secret);
+        if (!supabase) {
+            throw new Error("Supabase client not initialized.");
+        }
+
+        // Validate the token securely with Supabase Auth
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+
+        if (error || !user) {
+            console.error("Supabase Auth Error:", error?.message);
+            return res.status(401).json({
+                success: false,
+                message: "Invalid or expired token",
+            });
+        }
         
-        // Supabase JWT stores the user UUID in the 'sub' claim
-        req.userId = decoded.sub || decoded.userId;
-        req.userEmail = decoded.email;
-        req.userRole = decoded.role;
+        // Populate req.user details
+        req.userId = user.id;
+        req.userEmail = user.email;
+        req.userRole = user.user_metadata?.role || "user";
+        
         next();
     } catch (error) {
+        console.error("Auth Middleware Error:", error.message);
         return res.status(401).json({
             success: false,
-            message: "Invalid or expired token",
+            message: "Authentication failed",
         });
     }
 };
 
-const adminMiddleware = (req, res, next) => {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({
-            success: false,
-            message: "Authentication required",
-        });
-    }
-
-    const token = authHeader.substring(7);
-    const decoded = verifyToken(token);
-
-    if (!decoded) {
-        return res.status(401).json({
-            success: false,
-            message: "Invalid or expired token",
-        });
-    }
-
-    if (decoded.role !== "admin") {
-        return res.status(403).json({
-            success: false,
-            message: "Admin access required",
-        });
-    }
-
-    req.userId = decoded.userId;
-    req.userEmail = decoded.email;
-    req.userRole = decoded.role;
-    next();
+const adminMiddleware = async (req, res, next) => {
+    // First, pass through standard auth
+    await authMiddleware(req, res, () => {
+        // Then, check if the authenticated user has admin role
+        if (req.userRole !== "admin") {
+            return res.status(403).json({
+                success: false,
+                message: "Admin access required",
+            });
+        }
+        next();
+    });
 };
 
 module.exports = {
-    generateToken,
-    verifyToken,
-    hashPassword,
-    comparePassword,
     authMiddleware,
     adminMiddleware,
 };
+
