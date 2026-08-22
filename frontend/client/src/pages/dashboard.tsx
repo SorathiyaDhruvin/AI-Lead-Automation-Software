@@ -284,10 +284,17 @@ export function DashboardPage() {
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className="h-3 w-3 rounded-full"
-                          style={{ backgroundColor: segment.color }}
+                          className="h-3 w-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: segment.color || '#3b82f6' }}
                         />
-                        <span className="font-medium">{segment.name}</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-medium text-sm truncate">{segment.name}</span>
+                          {segment.description && (
+                            <span className="text-xs text-muted-foreground truncate" title={segment.description}>
+                              {segment.description}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <Badge variant="secondary">{segment.leadCount} leads</Badge>
                     </div>
