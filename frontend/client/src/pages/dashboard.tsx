@@ -148,8 +148,8 @@ export function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-w-0">
+        <div className="lg:col-span-2 min-w-0">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -206,7 +206,7 @@ export function DashboardPage() {
           </Card>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -250,8 +250,8 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-w-0">
+        <div className="lg:col-span-2 min-w-0">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -265,7 +265,7 @@ export function DashboardPage() {
           </Card>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -279,24 +279,26 @@ export function DashboardPage() {
                   {segments.slice(0, 4).map((segment) => (
                     <div
                       key={segment.id}
-                      className="flex items-center justify-between p-3 rounded-md bg-muted/50"
+                      className="grid grid-cols-[12px_minmax(0,1fr)_auto] gap-3 items-start p-3.5 rounded-md bg-muted/50 w-full box-border"
                       data-testid={`segment-item-${segment.id}`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="h-3 w-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: segment.color || '#3b82f6' }}
-                        />
-                        <div className="flex flex-col min-w-0">
-                          <span className="font-medium text-sm truncate">{segment.name}</span>
-                          {segment.description && (
-                            <span className="text-xs text-muted-foreground truncate" title={segment.description}>
-                              {segment.description}
-                            </span>
-                          )}
-                        </div>
+                      <div
+                        className="h-3 w-3 rounded-full mt-[3px] flex-shrink-0"
+                        style={{ backgroundColor: segment.color || '#3b82f6' }}
+                      />
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-medium text-sm text-foreground break-words leading-tight">
+                          {segment.name}
+                        </span>
+                        {segment.description && (
+                          <span className="text-xs text-muted-foreground leading-[1.4] mt-1 break-words">
+                            {segment.description}
+                          </span>
+                        )}
                       </div>
-                      <Badge variant="secondary">{segment.leadCount} leads</Badge>
+                      <Badge variant="secondary" className="whitespace-nowrap flex-shrink-0">
+                        {segment.leadCount} leads
+                      </Badge>
                     </div>
                   ))}
                 </div>
