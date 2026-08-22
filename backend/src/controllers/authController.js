@@ -136,8 +136,33 @@ const resetPassword = asyncHandler(async (req, res) => {
         return res.status(404).json({ success: false, message: "User not found" });
     }
 
+    // Find the correct Supabase Auth user by email, since local DB ID
+    // may not match the Supabase Auth UUID
+    let supabaseAuthUserId = user.id;
+
+    try {
+        const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers();
+        if (!listError && authUsers?.users) {
+            const authUser = authUsers.users.find(
+                u => u.email?.toLowerCase() === user.email?.toLowerCase()
+            );
+            if (authUser) {
+                supabaseAuthUserId = authUser.id;
+                console.log(`[RESET PASSWORD] Found Supabase Auth user: ${authUser.id} for email: ${user.email}`);
+            } else {
+                console.warn(`[RESET PASSWORD] No Supabase Auth user found for email: ${user.email}`);
+                return res.status(404).json({ success: false, message: "User not found in authentication provider" });
+            }
+        } else if (listError) {
+            console.error("[RESET PASSWORD] Failed to list Supabase Auth users:", listError.message);
+        }
+    } catch (lookupErr) {
+        console.error("[RESET PASSWORD] Supabase Auth lookup error:", lookupErr.message);
+        // Fall back to local user ID
+    }
+
     // Update password in Supabase Auth securely using Admin API
-    const { error } = await supabase.auth.admin.updateUserById(user.id, {
+    const { error } = await supabase.auth.admin.updateUserById(supabaseAuthUserId, {
         password: newPassword
     });
 
