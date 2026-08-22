@@ -35,6 +35,7 @@ import { LeadDialog } from "@/components/lead-dialog";
 import { LeadDetailsSheet } from "@/components/lead-details-sheet";
 import { leadsService } from "@/services/leads";
 import type { Lead } from "@/types";
+import { useRoute, useLocation } from "wouter";
 
 const statusColors: Record<string, string> = {
   new: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
@@ -48,16 +49,32 @@ const statusColors: Record<string, string> = {
 
 export default function LeadsPage() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const [match, params] = useRoute("/leads/:id");
+  const routeLeadId = match ? params.id : null;
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [detailsLead, setDetailsLead] = useState<Lead | null>(null);
 
   const { data: leads, isLoading } = useQuery<Lead[]>({
     queryKey: ["/api/leads"],
     queryFn: () => leadsService.getAll(),
   });
+
+  const leadFromList = leads?.find((l) => l.id === routeLeadId);
+
+  const { data: fetchedLead, isLoading: isFetchingLead, error: leadError } = useQuery<Lead>({
+    queryKey: ["/api/leads", routeLeadId],
+    queryFn: () => leadsService.getById(routeLeadId!),
+    enabled: !!routeLeadId && !leadFromList,
+    retry: false,
+  });
+
+  const detailsLead = leadFromList || fetchedLead || null;
+  const isDetailsLoading = !!routeLeadId && !leadFromList && isFetchingLead;
+  const isLeadNotFound = !!routeLeadId && !leadFromList && !isFetchingLead && (!fetchedLead || leadError);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => leadsService.remove(id),
@@ -98,6 +115,23 @@ export default function LeadsPage() {
       .toUpperCase()
       .slice(0, 2);
   };
+
+  if (isLeadNotFound) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+        <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center">
+          <Eye className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <h2 className="text-2xl font-semibold">Lead Not Found</h2>
+        <p className="text-muted-foreground text-center max-w-md">
+          The lead you are looking for may have been deleted, or you may not have permission to access it.
+        </p>
+        <Button onClick={() => setLocation("/leads")}>
+          Back to Lead Management
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -168,7 +202,7 @@ export default function LeadsPage() {
                     <TableRow
                       key={lead.id}
                       className="cursor-pointer hover-elevate"
-                      onClick={() => setDetailsLead(lead)}
+                      onClick={() => setLocation(`/leads/${lead.id}`)}
                       data-testid={`row-lead-${lead.id}`}
                     >
                       <TableCell>
@@ -204,7 +238,7 @@ export default function LeadsPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={(e) => {
                               e.stopPropagation();
-                              setDetailsLead(lead);
+                              setLocation(`/leads/${lead.id}`);
                             }}>
                               <Eye className="h-4 w-4 mr-2" />
                               View Details
@@ -279,7 +313,9 @@ export default function LeadsPage() {
 
       <LeadDetailsSheet
         lead={detailsLead}
-        onClose={() => setDetailsLead(null)}
+        isOpen={!!routeLeadId}
+        isLoading={isDetailsLoading}
+        onClose={() => setLocation("/leads")}
       />
     </div>
   );

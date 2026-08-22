@@ -35,6 +35,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -112,6 +113,7 @@ const activityColors: Record<string, string> = {
 
 export default function LeadManagementPage() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [scoreFilter, setScoreFilter] = useState<string>("all");
@@ -261,9 +263,7 @@ export default function LeadManagementPage() {
   };
 
   const openDetail = (lead: Lead) => {
-    setDetailLead(lead);
-    setActiveTab("overview");
-    setNewNote("");
+    setLocation(`/leads/${lead.id}`);
   };
 
   const hasActiveFilters = searchQuery || statusFilter !== "all" || scoreFilter !== "all" || dateFilter !== "all";
@@ -550,290 +550,7 @@ export default function LeadManagementPage() {
         lead={selectedLead}
       />
 
-      <Sheet open={!!detailLead} onOpenChange={() => setDetailLead(null)}>
-        <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
-          <SheetHeader className="pb-4">
-            <div className="flex items-center gap-4">
-              <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
-                <User className="h-7 w-7 text-primary" />
-              </div>
-              <div>
-                <SheetTitle className="text-xl">{detailLead?.name}</SheetTitle>
-                <SheetDescription>{detailLead?.company || detailLead?.email}</SheetDescription>
-              </div>
-            </div>
-          </SheetHeader>
 
-          {detailLead && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button size="sm" onClick={() => handleQuickAction("call", detailLead)} data-testid="button-detail-call">
-                  <PhoneCall className="h-4 w-4 mr-2" /> Call
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleQuickAction("email", detailLead)} data-testid="button-detail-email">
-                  <Mail className="h-4 w-4 mr-2" /> Email
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleQuickAction("meeting", detailLead)} data-testid="button-detail-meeting">
-                  <Calendar className="h-4 w-4 mr-2" /> Meeting
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => scoreMutation.mutate(detailLead.id)} disabled={scoreMutation.isPending} data-testid="button-ai-score">
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  {scoreMutation.isPending ? "Scoring…" : "Score with AI"}
-                </Button>
-              </div>
-
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-2">Pipeline Stage</p>
-                <div className="flex items-center gap-1">
-                  {statusSteps.map((step, index) => {
-                    const isActive = statusSteps.indexOf(detailLead.status) >= index;
-                    const isCurrent = detailLead.status === step;
-                    return (
-                      <button
-                        key={step}
-                        onClick={() => updateStatusMutation.mutate({ id: detailLead.id, status: step })}
-                        className={`flex-1 h-2 rounded-full transition-colors ${isActive ? "bg-primary" : "bg-muted"} ${isCurrent ? "ring-2 ring-primary ring-offset-2" : ""}`}
-                        data-testid={`button-stage-${step}`}
-                      />
-                    );
-                  })}
-                </div>
-                <div className="flex justify-between mt-1">
-                  {statusSteps.map((step) => (
-                    <span key={step} className="text-xs text-muted-foreground capitalize">{step}</span>
-                  ))}
-                </div>
-              </div>
-
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="w-full">
-                  <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
-                  <TabsTrigger value="notes" className="flex-1" data-testid="tab-notes">Notes</TabsTrigger>
-                  <TabsTrigger value="activity" className="flex-1" data-testid="tab-activity">Activity</TabsTrigger>
-                </TabsList>
-
-                {/* Overview Tab */}
-                <TabsContent value="overview" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Email</p>
-                      <p className="text-sm">{detailLead.email}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Phone</p>
-                      <p className="text-sm">{detailLead.phone || "Not provided"}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Company</p>
-                      <p className="text-sm">{detailLead.company || "Not provided"}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Source</p>
-                      <p className="text-sm capitalize">{detailLead.source}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Status</p>
-                      <Badge className={statusColors[detailLead.status]}>{detailLead.status}</Badge>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Created</p>
-                      <p className="text-sm">{new Date(detailLead.createdAt).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-
-                  {detailLead.aiScore !== null && detailLead.aiScore !== undefined && (
-                    <Card className="bg-gradient-to-br from-primary/5 to-secondary/5">
-                      <CardContent className="pt-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="h-4 w-4 text-primary" />
-                            <span className="font-medium">AI Score</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {detailLead.aiRating && (
-                              <Badge
-                                variant="outline"
-                                className={
-                                  detailLead.aiRating.toLowerCase() === "high"
-                                    ? "bg-red-100 text-red-700 border-red-200"
-                                    : detailLead.aiRating.toLowerCase() === "medium"
-                                    ? "bg-amber-100 text-amber-700 border-amber-200"
-                                    : "bg-sky-100 text-sky-700 border-sky-200"
-                                }
-                              >
-                                {detailLead.aiRating.charAt(0).toUpperCase() + detailLead.aiRating.slice(1)}
-                              </Badge>
-                            )}
-                            <Badge className={getScoreColor(detailLead.aiScore)}>{detailLead.aiScore}/100</Badge>
-                          </div>
-                        </div>
-
-                        {detailLead.aiReason && (
-                          <div className="mb-4">
-                            <p className="text-xs font-semibold text-muted-foreground mb-1 uppercase tracking-wider">Reason</p>
-                            <p className="text-sm text-foreground">{detailLead.aiReason}</p>
-                          </div>
-                        )}
-
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                          {detailLead.aiStrengths && (
-                            <div>
-                              <p className="text-xs font-semibold text-success mb-1 flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Strengths</p>
-                              <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-1">
-                                {(() => {
-                                  try {
-                                    const strengths = typeof detailLead.aiStrengths === 'string' ? JSON.parse(detailLead.aiStrengths) : detailLead.aiStrengths;
-                                    return Array.isArray(strengths) ? strengths.map((s: string, i: number) => <li key={i}>{s}</li>) : <li>{String(detailLead.aiStrengths)}</li>;
-                                  } catch (e) {
-                                    return <li>{String(detailLead.aiStrengths)}</li>;
-                                  }
-                                })()}
-                              </ul>
-                            </div>
-                          )}
-                          
-                          {detailLead.aiWeaknesses && (
-                            <div>
-                              <p className="text-xs font-semibold text-destructive mb-1 flex items-center gap-1"><Brain className="h-3 w-3" /> Weaknesses</p>
-                              <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-1">
-                                {(() => {
-                                  try {
-                                    const weaknesses = typeof detailLead.aiWeaknesses === 'string' ? JSON.parse(detailLead.aiWeaknesses) : detailLead.aiWeaknesses;
-                                    return Array.isArray(weaknesses) ? weaknesses.map((w: string, i: number) => <li key={i}>{w}</li>) : <li>{String(detailLead.aiWeaknesses)}</li>;
-                                  } catch (e) {
-                                    return <li>{String(detailLead.aiWeaknesses)}</li>;
-                                  }
-                                })()}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-
-                        {detailLead.aiRecommendation && (
-                          <div className="mt-2 p-3 rounded-md bg-primary/5 border border-primary/10">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Lightbulb className="h-4 w-4 text-amber-500" />
-                              <p className="text-xs font-medium text-primary">Recommended Action</p>
-                            </div>
-                            <p className="text-xs text-muted-foreground">{detailLead.aiRecommendation}</p>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-                </TabsContent>
-
-                {/* Notes Tab */}
-                <TabsContent value="notes" className="space-y-4 mt-4">
-                  <div className="space-y-3">
-                    <Textarea
-                      placeholder="Add a note about this lead..."
-                      value={newNote}
-                      onChange={(e) => setNewNote(e.target.value)}
-                      className="resize-none"
-                      rows={3}
-                      data-testid="textarea-new-note"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => addNoteMutation.mutate({ id: detailLead.id, text: newNote })}
-                      disabled={!newNote.trim() || addNoteMutation.isPending}
-                      data-testid="button-add-note"
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      {addNoteMutation.isPending ? "Saving…" : "Add Note"}
-                    </Button>
-                  </div>
-
-                  {notesLoading ? (
-                    <div className="space-y-2">
-                      {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
-                    </div>
-                  ) : notes.length > 0 ? (
-                    <div className="space-y-3">
-                      {notes.map((note) => (
-                        <div key={note.id} className="p-3 rounded-lg bg-muted/50" data-testid={`note-item-${note.id}`}>
-                          <p className="text-sm text-foreground whitespace-pre-wrap">{note.text}</p>
-                          <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                            <User className="h-3 w-3" />
-                            <span>{note.authorName}</span>
-                            <span>·</span>
-                            <Clock className="h-3 w-3" />
-                            <span>{new Date(note.createdAt).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <FileText className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No notes yet. Add the first note above.</p>
-                    </div>
-                  )}
-                </TabsContent>
-
-                {/* Activity Tab */}
-                <TabsContent value="activity" className="space-y-4 mt-4">
-                  {activityLoading ? (
-                    <div className="space-y-2">
-                      {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
-                    </div>
-                  ) : activityItems.length > 0 ? (
-                    <div className="space-y-3">
-                      {activityItems.map((item) => {
-                        const Icon = activityIcons[item.type] || Activity;
-                        const colorClass = activityColors[item.type] || "text-muted-foreground bg-muted/50";
-                        return (
-                          <div key={item.id} className="flex gap-3 p-3 rounded-lg bg-muted/30" data-testid={`activity-item-${item.id}`}>
-                            <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${colorClass}`}>
-                              <Icon className="h-4 w-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium capitalize">{item.type.replace(/_/g, " ")}</p>
-                              <p className="text-xs text-muted-foreground truncate">{item.description}</p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                <Clock className="h-3 w-3 inline mr-1" />
-                                {new Date(item.createdAt).toLocaleString()}
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Activity className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No activity recorded yet.</p>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-
-              <div className="flex gap-2 pt-4 border-t">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setSelectedLead(detailLead);
-                    setDetailLead(null);
-                    setIsDialogOpen(true);
-                  }}
-                  data-testid="button-edit-lead"
-                >
-                  <Edit className="h-4 w-4 mr-2" /> Edit Lead
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => deleteMutation.mutate(detailLead.id)}
-                  data-testid="button-delete-lead"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
 
       {/* Send Email Dialog */}
       <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>

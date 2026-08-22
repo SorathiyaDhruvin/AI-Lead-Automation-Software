@@ -35,6 +35,8 @@ import type { Lead, LeadNote, Activity as LeadActivity } from "@/types";
 
 interface LeadDetailsSheetProps {
   lead: Lead | null;
+  isOpen?: boolean;
+  isLoading?: boolean;
   onClose: () => void;
 }
 
@@ -71,7 +73,7 @@ const activityColors: Record<string, string> = {
   scored: "text-green-500 bg-green-50 dark:bg-green-900/20",
 };
 
-export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
+export function LeadDetailsSheet({ lead, isOpen, isLoading, onClose }: LeadDetailsSheetProps) {
   const { toast } = useToast();
   const [displayedLead, setDisplayedLead] = useState<Lead | null>(lead);
   const [activeTab, setActiveTab] = useState("info");
@@ -157,16 +159,37 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
     },
   });
 
-  if (!displayedLead) return null;
+  // If it's loading, we still want to show the sheet but with a skeleton
+  if (!displayedLead && !isLoading) return null;
 
   const getInitials = (name: string) => {
+    if (!name) return "";
     return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
+  const isSheetOpen = isOpen !== undefined ? isOpen : !!lead;
+
   return (
     <>
-    <Sheet open={!!lead} onOpenChange={() => onClose()}>
+    <Sheet open={isSheetOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+        {isLoading || !displayedLead ? (
+          <div className="flex flex-col gap-6 py-6 h-full">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-14 w-14 rounded-full" />
+              <div className="space-y-2 flex-1">
+                <Skeleton className="h-6 w-1/2" />
+                <Skeleton className="h-4 w-1/3" />
+              </div>
+            </div>
+            <Skeleton className="h-8 w-full" />
+            <div className="space-y-4 mt-4">
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          </div>
+        ) : (
+          <>
         <SheetHeader>
           <div className="flex items-center gap-4">
             <Avatar className="h-14 w-14">
@@ -417,6 +440,8 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
             )}
           </TabsContent>
         </Tabs>
+          </>
+        )}
       </SheetContent>
     </Sheet>
 
@@ -425,7 +450,7 @@ export function LeadDetailsSheet({ lead, onClose }: LeadDetailsSheetProps) {
         <DialogHeader>
           <DialogTitle>Send Follow-up Email</DialogTitle>
           <DialogDescription>
-            Send a follow-up email to {displayedLead.name} ({displayedLead.email})
+            Send a follow-up email to {displayedLead?.name} ({displayedLead?.email})
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

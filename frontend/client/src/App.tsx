@@ -246,6 +246,13 @@ function Router() {
           </AuthenticatedLayout>
         </ProtectedRoute>
       </Route>
+      <Route path="/leads/:id">
+        <ProtectedRoute>
+          <AuthenticatedLayout>
+            <LeadsPage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      </Route>
       <Route path="/lead-generation">
         <ProtectedRoute>
           <AuthenticatedLayout>
