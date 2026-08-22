@@ -26,15 +26,20 @@ const createSegment = asyncHandler(async (req, res) => {
         return res.status(409).json({ success: false, message: `A segment named "${name}" already exists.` });
     }
 
-    const segment = await segmentModel.create({
-        userId: req.userId,
-        name: name.trim(),
-        description,
-        criteria,
-        color
-    });
+    try {
+        const segment = await segmentModel.create({
+            userId: req.userId,
+            name: name.trim(),
+            description: description || null,
+            criteria: criteria ? (typeof criteria === 'object' ? JSON.stringify(criteria) : criteria) : null,
+            color: color || '#3b82f6'
+        });
 
-    res.status(201).json({ success: true, data: segment });
+        res.status(201).json({ success: true, data: segment });
+    } catch (error) {
+        console.error("[CREATE SEGMENT ERROR]", error);
+        res.status(500).json({ success: false, message: "Failed to create segment: " + error.message });
+    }
 });
 
 /**

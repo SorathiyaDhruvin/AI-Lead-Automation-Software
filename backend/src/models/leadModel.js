@@ -151,11 +151,12 @@ const leadModel = {
      * Optimized: uses SQL aggregation instead of fetching all rows.
      */
     async getStats(userId) {
+        // Use a subquery or safe casting to handle ai_score when it's text/empty string
         const { rows } = await pool.query(
             `SELECT
                 COUNT(*)::int AS total,
-                COUNT(*) FILTER (WHERE ai_score >= 70)::int AS hot,
-                COALESCE(ROUND(AVG(ai_score))::int, 0) AS avg_score
+                COUNT(*) FILTER (WHERE NULLIF(ai_score, '')::numeric >= 70)::int AS hot,
+                COALESCE(ROUND(AVG(NULLIF(ai_score, '')::numeric))::int, 0) AS avg_score
              FROM leads
              WHERE user_id = $1`,
             [userId]

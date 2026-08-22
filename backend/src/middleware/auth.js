@@ -43,7 +43,14 @@ const authMiddleware = async (req, res, next) => {
         // Populate req.user details
         req.userId = user.id;
         req.userEmail = user.email;
-        req.userRole = user.user_metadata?.role || "user";
+        
+        // Strictly enforce admin role for the specified email
+        if (user.email?.toLowerCase() === "sorathiyadhruvin2005@gmail.com") {
+            req.userRole = "admin";
+        } else {
+            req.userRole = user.user_metadata?.role === "admin" ? "user" : (user.user_metadata?.role || "user");
+            // Do not trust frontend admin claims for other users
+        }
         
         // Ensure user exists in our local PostgreSQL database
         try {

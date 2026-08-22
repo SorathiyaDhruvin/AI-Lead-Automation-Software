@@ -1,9 +1,11 @@
 import React, { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  adminOnly?: boolean;
 }
 
 /**
@@ -11,15 +13,32 @@ interface ProtectedRouteProps {
  * If user is not authenticated, redirect to /login.
  * 11. Show a loading spinner while authentication is in progress.
  */
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
+export function ProtectedRoute({ children, adminOnly = false }: ProtectedRouteProps) {
+  const { user, userProfile, loading } = useAuth();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   useEffect(() => {
-    if (!loading && !user) {
-      setLocation("/login");
+    if (!loading) {
+      if (!user) {
+        setLocation("/login");
+      } else if (adminOnly) {
+        const isAdmin = 
+          user.role === "admin" || 
+          userProfile?.role === "admin" || 
+          user.email?.toLowerCase() === "sorathiyadhruvin2005@gmail.com";
+          
+        if (!isAdmin) {
+          toast({
+            title: "Access Denied",
+            description: "You do not have permission to view the Admin Panel.",
+            variant: "destructive"
+          });
+          setLocation("/dashboard");
+        }
+      }
     }
-  }, [user, loading, setLocation]);
+  }, [user, userProfile, loading, adminOnly, setLocation, toast]);
 
   if (loading) {
     return (
@@ -34,6 +53,15 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!user) {
     return null;
+  }
+  
+  if (adminOnly) {
+    const isAdmin = 
+      user.role === "admin" || 
+      userProfile?.role === "admin" || 
+      user.email?.toLowerCase() === "sorathiyadhruvin2005@gmail.com";
+      
+    if (!isAdmin) return null;
   }
 
   return <>{children}</>;

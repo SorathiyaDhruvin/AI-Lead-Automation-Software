@@ -67,7 +67,7 @@ Respond in JSON format:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gemini-3.7-flash",
+      model: process.env.AI_MODEL || "gemini-3.6-flash",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 500,
@@ -139,7 +139,7 @@ Use these colors: #0066FF, #6C5CE7, #00D68F, #FFB946, #FF6B6B, #4ECDC4`;
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gemini-3.7-flash",
+      model: process.env.AI_MODEL || "gemini-3.6-flash",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 1000,

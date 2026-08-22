@@ -23,7 +23,7 @@ async function scoreLead(lead) {
         throw new Error("GEMINI_API_KEY is missing. Please configure it in environment variables.");
     }
 
-    const model = process.env.AI_MODEL || "gemini-3.7-flash";
+    const model = process.env.AI_MODEL || "gemini-3.6-flash";
     const prompt = `
     You are an expert AI lead scoring assistant. Evaluate this lead and provide a score, category (Hot, Warm, or Cold), rating (high, medium, or low), prediction, insights, strengths, weaknesses, and a recommendation.
 
@@ -98,7 +98,7 @@ async function autoSegmentLeads(leads) {
         throw new Error("GEMINI_API_KEY is missing. Please configure it in environment variables.");
     }
 
-    const model = process.env.AI_MODEL || "gemini-3.7-flash";
+    const model = process.env.AI_MODEL || "gemini-3.6-flash";
     const leadSummary = leads.map(l => ({
         id: l.id,
         name: l.name,

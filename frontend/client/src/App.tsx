@@ -303,7 +303,7 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/admin">
-        <ProtectedRoute>
+        <ProtectedRoute adminOnly={true}>
           <AuthenticatedLayout>
             <AdminPage />
           </AuthenticatedLayout>
