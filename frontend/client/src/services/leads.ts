@@ -13,26 +13,35 @@ function filtersToParams(filters?: LeadFilters, limit?: number): Record<string, 
   return params;
 }
 
+function mapLead(l: any): Lead {
+  return {
+    ...l,
+    aiScore: l.aiScore !== undefined ? Number(l.aiScore) : (l.ai_score !== undefined && l.ai_score !== null ? Number(l.ai_score) : null),
+    createdAt: l.createdAt || l.created_at,
+    updatedAt: l.updatedAt || l.updated_at,
+  };
+}
+
 export const leadsService = {
   // ── CRUD ────────────────────────────────────────────────
   async getAll(filters?: LeadFilters, limit?: number): Promise<Lead[]> {
-    const leads = await apiClient.get<Lead[]>("/leads", filtersToParams(filters, limit));
-    return leads.map(l => ({...l, createdAt: l.createdAt || (l as any).created_at, updatedAt: l.updatedAt || (l as any).updated_at}));
+    const leads = await apiClient.get<any[]>("/leads", filtersToParams(filters, limit));
+    return leads.map(mapLead);
   },
 
   async getById(id: string): Promise<Lead> {
-    const l = await apiClient.get<Lead>(`/leads/${id}`);
-    return {...l, createdAt: l.createdAt || (l as any).created_at, updatedAt: l.updatedAt || (l as any).updated_at};
+    const l = await apiClient.get<any>(`/leads/${id}`);
+    return mapLead(l);
   },
 
   async create(data: Partial<Lead>): Promise<Lead> {
-    const l = await apiClient.post<Lead>("/leads", data);
-    return {...l, createdAt: l.createdAt || (l as any).created_at, updatedAt: l.updatedAt || (l as any).updated_at};
+    const l = await apiClient.post<any>("/leads", data);
+    return mapLead(l);
   },
 
   async update(id: string, data: Partial<Lead>): Promise<Lead> {
-    const l = await apiClient.put<Lead>(`/leads/${id}`, data);
-    return {...l, createdAt: l.createdAt || (l as any).created_at, updatedAt: l.updatedAt || (l as any).updated_at};
+    const l = await apiClient.put<any>(`/leads/${id}`, data);
+    return mapLead(l);
   },
 
   async remove(id: string): Promise<void> {
@@ -41,8 +50,8 @@ export const leadsService = {
 
   // ── AI Scoring ──────────────────────────────────────────
   async score(id: string): Promise<Lead> {
-    const l = await apiClient.post<Lead>(`/leads/${id}/score`);
-    return {...l, createdAt: l.createdAt || (l as any).created_at, updatedAt: l.updatedAt || (l as any).updated_at};
+    const l = await apiClient.post<any>(`/leads/${id}/score`);
+    return mapLead(l);
   },
 
   // ── Email ───────────────────────────────────────────────

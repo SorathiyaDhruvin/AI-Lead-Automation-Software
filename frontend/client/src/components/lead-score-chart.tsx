@@ -29,16 +29,20 @@ export function LeadScoreChart({ leads, isLoading }: LeadScoreChartProps) {
     count: leads.filter(
       (lead) =>
         lead.aiScore !== null &&
+        lead.aiScore !== undefined &&
         lead.aiScore >= range.min &&
         lead.aiScore <= range.max
     ).length,
     color: range.color,
   }));
 
-  if (leads.length === 0) {
+  const totalScored = data.reduce((sum, item) => sum + item.count, 0);
+
+  if (totalScored === 0) {
     return (
-      <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-        No leads with AI scores yet
+      <div className="h-[300px] flex flex-col items-center justify-center text-center p-6 text-muted-foreground">
+        <p className="font-medium mb-1 text-foreground">No scored leads yet.</p>
+        <p className="text-sm">Score leads using AI to see the distribution here.</p>
       </div>
     );
   }
