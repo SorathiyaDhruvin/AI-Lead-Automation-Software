@@ -5,5 +5,6 @@ const authController = require("../controllers/authController");
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/verify-otp", authController.verifyOtp);
 router.post("/reset-password", authController.resetPassword);
+router.post("/test-email", authController.testEmail);
 
 module.exports = router;

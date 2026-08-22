@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
 const userModel = require("../models/userModel");
 const passwordResetModel = require("../models/passwordResetModel");
-const { sendEmail } = require("../services/emailService");
+const { sendEmail, buildOtpEmail, sendTestEmail: sendTestEmailService } = require("../services/emailService");
 const { asyncHandler } = require("../middleware/errorHandler");
 
 const supabase = createClient(
@@ -12,7 +12,8 @@ const supabase = createClient(
 
 /**
  * POST /api/auth/forgot-password
- * Generates an OTP and sends it via Resend.
+ * Generates a 6-digit OTP (crypto-safe) and sends it via Resend.
+ * If email delivery fails, the OTP row is cleaned up.
  */
 const forgotPassword = asyncHandler(async (req, res) => {
     const { email } = req.body;
@@ -20,7 +21,9 @@ const forgotPassword = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: "Email is required" });
     }
 
-    const user = await userModel.getByEmail(email.trim().toLowerCase());
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const user = await userModel.getByEmail(normalizedEmail);
     if (!user) {
         // Return success to prevent email enumeration
         return res.json({ success: true, message: "If that email exists, an OTP has been sent." });
@@ -29,39 +32,39 @@ const forgotPassword = asyncHandler(async (req, res) => {
     // Invalidate previous active OTPs for this user/email
     await passwordResetModel.invalidateAllForUser(user.email);
 
-    // Generate 6 digit OTP
-    const otp = crypto.randomInt(100000, 999999).toString();
+    // Generate crypto-safe 6-digit OTP (100000–999999)
+    const otp = crypto.randomInt(100000, 1000000).toString();
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    await passwordResetModel.create({
+    // Save OTP to database
+    const otpRecord = await passwordResetModel.create({
         userId: user.id,
         email: user.email,
         otp,
         otpExpiresAt,
     });
 
-    const emailHtml = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
-        <h2 style="color: #2563EB; margin-top: 0;">Password Reset Request</h2>
-        <p>Hi ${user.first_name || "there"},</p>
-        <p>You requested a password reset. Here is your 6-digit verification code:</p>
-        <div style="background-color: #f3f4f6; padding: 16px; text-align: center; font-size: 24px; letter-spacing: 4px; font-weight: bold; border-radius: 8px; margin: 20px 0;">
-          ${otp}
-        </div>
-        <p>This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
-        <br/>
-        <p style="color: #6C5CE7; font-weight: bold; margin-bottom: 0;">The LeadFlow Team</p>
-      </div>
-    `;
+    console.log(`[OTP EMAIL] Sending password reset email to ${user.email}`);
 
+    // Send OTP email via Resend
     try {
-        const responseData = await sendEmail(user.email, "Your Password Reset Code", emailHtml);
-        console.log(`[EMAIL] Password reset email accepted by Resend: ${responseData?.id}`);
+        const emailHtml = buildOtpEmail(user.first_name, otp);
+        const responseData = await sendEmail(user.email, "Your LeadFlow AI Password Reset Code", emailHtml);
+        console.log(`[OTP EMAIL] Resend accepted email: ${responseData?.id}`);
     } catch (err) {
-        console.error(`[EMAIL ERROR] ${err.message}`);
-        return res.status(500).json({ 
-            success: false, 
-            message: "Unable to send password reset email. Please try again later." 
+        console.error(`[OTP EMAIL ERROR] ${err.message}`);
+
+        // Clean up the OTP record since email was never delivered
+        try {
+            await passwordResetModel.deleteById(otpRecord.id);
+            console.log(`[OTP EMAIL] Cleaned up undelivered OTP record ${otpRecord.id}`);
+        } catch (cleanupErr) {
+            console.error(`[OTP EMAIL] Failed to clean up OTP record: ${cleanupErr.message}`);
+        }
+
+        return res.status(500).json({
+            success: false,
+            message: "Unable to send password reset email. Please try again later."
         });
     }
 
@@ -78,7 +81,10 @@ const verifyOtp = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: "Email and OTP are required" });
     }
 
-    const resetRecord = await passwordResetModel.getByEmailAndOtp(email.trim().toLowerCase(), otp.trim());
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedOtp = otp.trim();
+
+    const resetRecord = await passwordResetModel.getByEmailAndOtp(normalizedEmail, normalizedOtp);
 
     if (!resetRecord) {
         return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
@@ -140,7 +146,7 @@ const resetPassword = asyncHandler(async (req, res) => {
         return res.status(500).json({ success: false, message: "Failed to reset password in Auth provider: " + error.message });
     }
 
-    // Expire reset token immediately
+    // Expire reset token and invalidate OTP immediately
     await passwordResetModel.update(resetRecord.id, {
         reset_token_expires_at: new Date(0),
     });
@@ -148,8 +154,45 @@ const resetPassword = asyncHandler(async (req, res) => {
     res.json({ success: true, message: "Password updated successfully" });
 });
 
+/**
+ * POST /api/auth/test-email (development/admin only)
+ * Sends a test email to verify Resend configuration.
+ */
+const testEmail = asyncHandler(async (req, res) => {
+    // Only allow in non-production environments
+    if (process.env.NODE_ENV === "production") {
+        return res.status(403).json({ success: false, message: "Test email endpoint is not available in production" });
+    }
+
+    const { email } = req.body;
+    if (!email || typeof email !== "string") {
+        return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    try {
+        const data = await sendTestEmailService(normalizedEmail);
+        res.json({
+            success: true,
+            message: "Test email sent successfully",
+            data: {
+                emailId: data.id,
+                recipient: normalizedEmail,
+            }
+        });
+    } catch (err) {
+        console.error(`[TEST EMAIL ERROR] ${err.message}`);
+        res.status(500).json({
+            success: false,
+            message: `Failed to send test email: ${err.message}`,
+        });
+    }
+});
+
 module.exports = {
     forgotPassword,
     verifyOtp,
-    resetPassword
+    resetPassword,
+    testEmail
 };

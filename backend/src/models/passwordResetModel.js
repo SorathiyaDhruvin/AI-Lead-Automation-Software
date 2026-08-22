@@ -69,6 +69,13 @@ const passwordResetModel = {
             values
         );
         return rows[0] || null;
+    },
+
+    async deleteById(id) {
+        await pool.query(
+            `DELETE FROM password_resets WHERE id = $1`,
+            [id]
+        );
     }
 };
 

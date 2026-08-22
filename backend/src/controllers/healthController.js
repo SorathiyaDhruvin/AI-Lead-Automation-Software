@@ -28,4 +28,20 @@ const getHealth = async (req, res) => {
     });
 };
 
-module.exports = { getHealth };
+/**
+ * GET /api/health/email
+ * Returns email service configuration status without exposing secrets.
+ */
+const getEmailHealth = async (req, res) => {
+    const hasApiKey = !!process.env.RESEND_API_KEY;
+    const hasFromEmail = !!process.env.RESEND_FROM_EMAIL;
+
+    res.json({
+        configured: hasApiKey && hasFromEmail,
+        provider: "resend",
+        from: hasFromEmail ? "configured" : "missing",
+        apiKey: hasApiKey ? "configured" : "missing",
+    });
+};
+
+module.exports = { getHealth, getEmailHealth };

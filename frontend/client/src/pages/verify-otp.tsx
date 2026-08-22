@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
-import { AlertCircle, Loader2, Sparkles, ArrowLeft } from "lucide-react";
+import { AlertCircle, Loader2, Sparkles, ArrowLeft, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/services/api";
+
+const OTP_EXPIRY_SECONDS = 10 * 60; // 10 minutes
 
 export default function VerifyOtp() {
   const [location, setLocation] = useLocation();
@@ -27,18 +29,44 @@ export default function VerifyOtp() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
+  // Resend cooldown (60 seconds)
   const [cooldown, setCooldown] = useState(60);
   const [isResending, setIsResending] = useState(false);
 
+  // OTP expiration countdown (10 minutes)
+  const [expirySeconds, setExpirySeconds] = useState(OTP_EXPIRY_SECONDS);
+
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Timer for resend
+  // Auto-focus first input on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      inputRefs.current[0]?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Timer for resend cooldown
   useEffect(() => {
     if (cooldown > 0) {
       const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
       return () => clearTimeout(timer);
     }
   }, [cooldown]);
+
+  // Timer for OTP expiration countdown
+  useEffect(() => {
+    if (expirySeconds > 0) {
+      const timer = setTimeout(() => setExpirySeconds(expirySeconds - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [expirySeconds]);
+
+  const formatExpiry = useCallback((seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  }, []);
 
   const handleChange = (index: number, value: string) => {
     if (value.length > 1) {
@@ -80,7 +108,7 @@ export default function VerifyOtp() {
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData("text").trim().slice(0, 6).split("");
+    const pastedData = e.clipboardData.getData("text").trim().replace(/\D/g, "").slice(0, 6).split("");
     const newOtp = [...otp];
     let focusIndex = 0;
     
@@ -114,6 +142,7 @@ export default function VerifyOtp() {
         description: "A new 6-digit code has been sent to your email",
       });
       setCooldown(60);
+      setExpirySeconds(OTP_EXPIRY_SECONDS); // Reset expiry timer
       setOtp(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } catch (error: any) {
@@ -133,6 +162,11 @@ export default function VerifyOtp() {
     e.preventDefault();
     const otpValue = otp.join("");
     if (otpValue.length < 6) return;
+
+    if (expirySeconds <= 0) {
+      setErrorMsg("OTP has expired. Please request a new code.");
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMsg(null);
@@ -163,6 +197,8 @@ export default function VerifyOtp() {
     }
   };
 
+  const isExpired = expirySeconds <= 0;
+
   return (
     <main className="bg-slate-50 md:h-screen dark:bg-neutral-950 w-full overflow-hidden font-sans">
       <div className="grid md:grid-cols-[11fr_9fr] items-center w-full h-full gap-8 md:gap-16 lg:gap-20">
@@ -187,10 +223,25 @@ export default function VerifyOtp() {
             {/* Card Section */}
             <div className="w-full bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-slate-200 dark:border-neutral-800 p-6 sm:p-8 text-left">
               <div className="mb-6">
-                <h2 className="text-slate-900 text-[24px] font-bold dark:text-slate-50 leading-tight">Check your email</h2>
+                <h2 className="text-slate-900 text-[24px] font-bold dark:text-slate-50 leading-tight">Enter verification code</h2>
                 <p className="text-[15px] text-slate-500 mt-2 dark:text-slate-400">
                   We sent a 6-digit code to <span className="font-medium text-slate-900 dark:text-slate-200">{email}</span>
                 </p>
+              </div>
+
+              {/* OTP Expiration Countdown */}
+              <div className={`flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-[13px] font-medium ${
+                isExpired 
+                  ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" 
+                  : expirySeconds <= 60 
+                    ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" 
+                    : "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+              }`}>
+                <Clock className="h-4 w-4 flex-shrink-0" />
+                {isExpired 
+                  ? "OTP has expired. Please request a new code." 
+                  : `OTP expires in ${formatExpiry(expirySeconds)}`
+                }
               </div>
 
               {errorMsg && (
@@ -214,7 +265,10 @@ export default function VerifyOtp() {
                       onChange={(e) => handleChange(index, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(index, e)}
                       onPaste={handlePaste}
+                      aria-label={`Verification code digit ${index + 1} of 6`}
+                      id={`otp-input-${index}`}
                       className="h-12 w-12 sm:h-14 sm:w-14 text-center text-xl font-semibold rounded-xl bg-slate-50/50 border-slate-200 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:bg-blue-50/50 focus-visible:border-blue-500 dark:bg-neutral-800 dark:border-neutral-700 transition-colors"
+                      disabled={isExpired}
                     />
                   ))}
                 </div>
@@ -222,7 +276,7 @@ export default function VerifyOtp() {
                 <Button
                   type="submit"
                   className="w-full h-[40px] text-[14px] rounded-[8px] font-medium tracking-wide text-white bg-blue-600 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
-                  disabled={isSubmitting || otp.join("").length < 6}
+                  disabled={isSubmitting || otp.join("").length < 6 || isExpired}
                 >
                   {isSubmitting && <Loader2 className="h-5 w-5 animate-spin" />}
                   {isSubmitting ? "Verifying..." : "Verify Code"}

@@ -3,16 +3,28 @@ import { Resend } from 'resend';
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
+  const fromEmail = process.env.RESEND_FROM_EMAIL;
+  if (!fromEmail) {
+    throw new Error("RESEND_FROM_EMAIL is not configured in environment variables.");
+  }
+
   try {
-    const data = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+    const { data, error } = await resend.emails.send({
+      from: fromEmail,
       to,
       subject,
       html
     });
+
+    if (error) {
+      console.error(`[email] Resend error for "${subject}" to ${to}:`, error);
+      throw new Error(error.message || "Resend email failed");
+    }
+
     console.log(`[email] Sent "${subject}" to ${to}`, data);
   } catch (error) {
     console.error(`[email] Failed to send "${subject}" to ${to}:`, error);
+    throw error;
   }
 }
 
