@@ -21,7 +21,7 @@ const segmentModel = {
         return rows[0];
     },
 
-    async update(id, fields) {
+    async update(userId, id, fields) {
         const allowed = ["name", "description", "criteria", "color", "lead_count"];
         const updates = [];
         const values = [];
@@ -38,19 +38,20 @@ const segmentModel = {
         if (updates.length === 0) return null;
 
         values.push(id);
+        values.push(userId);
         const { rows } = await pool.query(
             `UPDATE segments SET ${updates.join(", ")}
-             WHERE id = $${paramIndex}
+             WHERE id = $${paramIndex} AND user_id = $${paramIndex + 1}
              RETURNING *`,
             values
         );
         return rows[0] || null;
     },
 
-    async delete(id) {
+    async delete(userId, id) {
         const { rowCount } = await pool.query(
-            `DELETE FROM segments WHERE id = $1`,
-            [id]
+            `DELETE FROM segments WHERE id = $1 AND user_id = $2`,
+            [id, userId]
         );
         return rowCount > 0;
     },

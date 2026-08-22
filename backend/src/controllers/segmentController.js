@@ -48,17 +48,16 @@ const createSegment = asyncHandler(async (req, res) => {
 const updateSegment = asyncHandler(async (req, res) => {
     const { name, description, criteria, color, lead_count } = req.body;
     
-    // Check if segment exists
-    const segment = await segmentModel.update(req.params.id, {
+    const segment = await segmentModel.update(req.userId, req.params.id, {
         name,
         description,
-        criteria,
+        criteria: criteria ? (typeof criteria === 'object' ? JSON.stringify(criteria) : criteria) : undefined,
         color,
         lead_count
     });
 
     if (!segment) {
-        return res.status(404).json({ success: false, message: "Segment not found" });
+        return res.status(404).json({ success: false, message: "Segment not found or unauthorized" });
     }
 
     res.json({ success: true, data: segment });
@@ -68,9 +67,9 @@ const updateSegment = asyncHandler(async (req, res) => {
  * DELETE /api/segments/:id
  */
 const deleteSegment = asyncHandler(async (req, res) => {
-    const deleted = await segmentModel.delete(req.params.id);
+    const deleted = await segmentModel.delete(req.userId, req.params.id);
     if (!deleted) {
-        return res.status(404).json({ success: false, message: "Segment not found" });
+        return res.status(404).json({ success: false, message: "Segment not found or unauthorized" });
     }
     res.status(204).send();
 });
@@ -100,7 +99,7 @@ const autoSegment = asyncHandler(async (req, res) => {
                     leadCount: seg.leadIds ? seg.leadIds.length : 0
                 });
             } else {
-                segmentRecord = await segmentModel.update(segmentRecord.id, {
+                segmentRecord = await segmentModel.update(req.userId, segmentRecord.id, {
                     description: seg.description,
                     criteria: seg.criteria,
                     color: seg.color || segmentRecord.color,

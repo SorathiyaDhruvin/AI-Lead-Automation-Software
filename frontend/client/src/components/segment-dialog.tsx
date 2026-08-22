@@ -91,8 +91,9 @@ export function SegmentDialog({ open, onOpenChange, segment }: SegmentDialogProp
       toast({ title: "Segment created", description: "New segment has been added" });
       onOpenChange(false);
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to create segment", variant: "destructive" });
+    onError: (error: any) => {
+      const message = error.response?.data?.message || error.message || "Failed to create segment";
+      toast({ title: "Error", description: message, variant: "destructive" });
     },
   });
 
@@ -106,8 +107,9 @@ export function SegmentDialog({ open, onOpenChange, segment }: SegmentDialogProp
       toast({ title: "Segment updated", description: "Changes have been saved" });
       onOpenChange(false);
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to update segment", variant: "destructive" });
+    onError: (error: any) => {
+      const message = error.response?.data?.message || error.message || "Failed to update segment";
+      toast({ title: "Error", description: message, variant: "destructive" });
     },
   });
 

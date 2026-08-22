@@ -7,6 +7,9 @@ const { authMiddleware } = require("../middleware/auth");
 router.use(authMiddleware);
 
 router.get("/", segmentController.getSegments);
+router.post("/", segmentController.createSegment);
+router.patch("/:id", segmentController.updateSegment);
+router.delete("/:id", segmentController.deleteSegment);
 router.post("/auto-segment", segmentController.autoSegment);
 
 module.exports = router;

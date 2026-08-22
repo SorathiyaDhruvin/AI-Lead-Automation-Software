@@ -33,8 +33,9 @@ export default function SegmentsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/segments"] });
       toast({ title: "Segment deleted", description: "The segment has been removed" });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to delete segment", variant: "destructive" });
+    onError: (error: any) => {
+      const message = error.response?.data?.message || error.message || "Failed to delete segment";
+      toast({ title: "Error", description: message, variant: "destructive" });
     },
   });
 
