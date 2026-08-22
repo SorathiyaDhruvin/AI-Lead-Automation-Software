@@ -1,9 +1,23 @@
 const leadRequestModel = require("../models/leadRequestModel");
 const { asyncHandler } = require("../middleware/errorHandler");
 
+const mapToCamelCase = (row) => {
+    if (!row) return null;
+    return {
+        ...row,
+        companyName: row.company_name,
+        contactName: row.contact_name,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        adminNotes: row.admin_notes,
+        reviewedBy: row.reviewed_by,
+        reviewedAt: row.reviewed_at,
+    };
+};
+
 const getRequests = asyncHandler(async (req, res) => {
     const requests = await leadRequestModel.getByUser(req.userId);
-    res.json({ success: true, data: requests });
+    res.json({ success: true, data: requests.map(mapToCamelCase) });
 });
 
 const createRequest = asyncHandler(async (req, res) => {
@@ -25,7 +39,7 @@ const createRequest = asyncHandler(async (req, res) => {
         priority,
     });
 
-    res.status(201).json({ success: true, data: request });
+    res.status(201).json({ success: true, data: mapToCamelCase(request) });
 });
 
 const getRequestById = asyncHandler(async (req, res) => {
@@ -38,13 +52,13 @@ const getRequestById = asyncHandler(async (req, res) => {
         return res.status(403).json({ success: false, message: "Access denied" });
     }
 
-    res.json({ success: true, data: request });
+    res.json({ success: true, data: mapToCamelCase(request) });
 });
 
 // Admin Controllers
 const adminGetRequests = asyncHandler(async (req, res) => {
     const requests = await leadRequestModel.getAll();
-    res.json({ success: true, data: requests });
+    res.json({ success: true, data: requests.map(mapToCamelCase) });
 });
 
 const adminUpdateStatus = asyncHandler(async (req, res) => {
@@ -65,7 +79,7 @@ const adminUpdateStatus = asyncHandler(async (req, res) => {
         reviewedAt: new Date()
     });
 
-    res.json({ success: true, data: updated });
+    res.json({ success: true, data: mapToCamelCase(updated) });
 });
 
 const adminGetStats = asyncHandler(async (req, res) => {
