@@ -51,6 +51,23 @@ export async function syncUserProfile(user: User): Promise<UserProfile | null> {
       return profile;
     }
 
+    // Check if user exists by email FIRST to prevent 409 users_email_unique conflict
+    const { data: existingUserByEmail, error: emailError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", userEmail)
+      .maybeSingle();
+
+    if (existingUserByEmail) {
+      // User exists with this email (possibly under a different ID from a legacy login).
+      // Return the existing user to avoid 409 constraint violation.
+      const profile = existingUserByEmail as UserProfile;
+      if (!profile.role) {
+        profile.role = computedRole;
+      }
+      return profile;
+    }
+
     // Insert user info into users table if not present
     let firstName = user.user_metadata?.first_name || user.user_metadata?.given_name || user.user_metadata?.name?.split(" ")[0];
     let lastName = user.user_metadata?.last_name || user.user_metadata?.family_name || user.user_metadata?.name?.split(" ").slice(1).join(" ");
@@ -74,7 +91,7 @@ export async function syncUserProfile(user: User): Promise<UserProfile | null> {
 
     const { data: insertedUser, error: insertError } = await supabase
       .from("users")
-      .upsert(newUser, { onConflict: "id" })
+      .upsert(newUser, { onConflict: "email" })
       .select()
       .single();
 

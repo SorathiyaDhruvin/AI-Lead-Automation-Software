@@ -55,9 +55,13 @@ async function sendEmail({ to, cc, bcc, subject, html, text, fromEmail, fromName
     const senderName = fromName || defaultFromName;
     const fromString = `"${senderName}" <${senderEmail}>`;
 
-    console.log(`[EMAIL] Sending "${subject}" to ${to}...`);
+    console.log(`[EMAIL] EMAIL_SEND_STARTED`);
+    console.log(`[EMAIL] From: ${fromString}`);
+    console.log(`[EMAIL] To: ${to}`);
+    console.log(`[EMAIL] Subject: ${subject}`);
 
     try {
+        console.log(`[EMAIL] EMAIL_SMTP_CONNECTED`);
         const mailOptions = {
             from: fromString,
             to,
@@ -69,21 +73,63 @@ async function sendEmail({ to, cc, bcc, subject, html, text, fromEmail, fromName
         if (html) mailOptions.html = html;
         if (text) mailOptions.text = text;
 
+        console.log(`[EMAIL] EMAIL_SEND_ATTEMPT`);
         const info = await transporter.sendMail(mailOptions);
 
-        console.log(`[EMAIL] Accepted email: ${info.messageId}`);
-        // info.messageId is standard in nodemailer, representing the backend message ID
+        // Sanitize the messageId (Nodemailer wraps it in <>)
+        let messageId = info.messageId || "";
+        if (messageId.startsWith("<") && messageId.endsWith(">")) {
+            messageId = messageId.substring(1, messageId.length - 1);
+        }
+
+        console.log(`[EMAIL] EMAIL_SEND_ACCEPTED - Message ID: ${messageId}`);
+        
         return {
-            id: info.messageId,
+            id: messageId,
             response: info.response
         };
     } catch (err) {
-        console.error(`[EMAIL] Failed to send email to ${to}: ${err.message}`);
+        console.error(`[EMAIL] EMAIL_SEND_FAILED - Failed to send email to ${to}: ${err.message}`);
+        
         // Do not leak SMTP credentials to frontend in case of auth error
-        if (err.message && err.message.includes('Invalid login')) {
-             throw new Error("Email service authentication failed. Please check backend SMTP credentials.");
+        if (err.message && (err.message.includes('Invalid login') || err.message.includes('Authentication failed'))) {
+             throw new Error("Email service authentication failed. The SMTP user or password might be incorrect, or IP authorization is blocking the connection.");
         }
         throw new Error(`Email delivery failed: ${err.message}`);
+    }
+}
+
+/**
+ * Check SMTP Connection safely without sending an email.
+ */
+async function checkSmtpConnection() {
+    const transporter = getTransporter();
+    if (!transporter) {
+        return {
+            configured: false,
+            message: "Email service is not configured. Missing BREVO_SMTP_USER or BREVO_SMTP_PASSWORD."
+        };
+    }
+    
+    try {
+        await transporter.verify();
+        return {
+            configured: true,
+            provider: "brevo",
+            smtpHost: process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com',
+            smtpPort: parseInt(process.env.BREVO_SMTP_PORT || '587', 10),
+            sender: process.env.BREVO_FROM_EMAIL
+        };
+    } catch (error) {
+        console.error("[EMAIL] SMTP Health Check Failed:", error.message);
+        let safeError = "Failed to connect to SMTP server";
+        if (error.message.includes('Authentication failed')) {
+            safeError = "SMTP Authentication failed (Check Credentials or IP Authorization)";
+        }
+        return {
+            configured: false,
+            error: safeError
+        };
     }
 }
 
@@ -209,5 +255,6 @@ module.exports = {
     buildFollowUpEmail,
     buildApprovalEmail,
     buildRejectionEmail,
-    isConfigured
+    isConfigured,
+    checkSmtpConnection
 };

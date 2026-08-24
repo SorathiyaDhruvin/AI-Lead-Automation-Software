@@ -55,21 +55,38 @@ const authMiddleware = async (req, res, next) => {
         // Ensure user exists in our local PostgreSQL database
         try {
             const userModel = require("../models/userModel");
-            const dbUser = await userModel.getById(user.id);
+            let dbUser = await userModel.getById(user.id);
+            
+            if (!dbUser && user.email) {
+                dbUser = await userModel.getByEmail(user.email);
+            }
+            
             if (!dbUser) {
                 const fullName = user.user_metadata?.full_name || "";
                 const nameParts = fullName.split(" ");
                 const firstName = user.user_metadata?.first_name || nameParts[0] || "User";
                 const lastName = user.user_metadata?.last_name || nameParts.slice(1).join(" ") || "";
                 
-                await userModel.create({
-                    id: user.id,
-                    email: user.email,
-                    first_name: firstName,
-                    last_name: lastName,
-                    role: req.userRole
-                });
-                console.log(`[Auth Sync] Created user record for ID: ${user.id}, Email: ${user.email}`);
+                try {
+                    await userModel.create({
+                        id: user.id,
+                        email: user.email,
+                        first_name: firstName,
+                        last_name: lastName,
+                        role: req.userRole
+                    });
+                    console.log(`[Auth Sync] Created user record for ID: ${user.id}, Email: ${user.email}`);
+                } catch (insertErr) {
+                    if (insertErr.code === '23505') {
+                        console.log(`[Auth Sync] User already exists by email (race condition): ${user.email}`);
+                    } else {
+                        throw insertErr;
+                    }
+                }
+            } else if (dbUser.id !== user.id) {
+                // User exists with same email but different ID (e.g. from legacy login)
+                // Overwrite req.userId to point to the actual database ID to maintain relations
+                req.userId = dbUser.id;
             }
         } catch (syncError) {
             console.error("[Auth Sync] Failed to synchronize user profile:", syncError.message);

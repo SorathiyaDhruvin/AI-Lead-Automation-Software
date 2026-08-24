@@ -270,8 +270,10 @@ async function executeAction(action, lead, userId, executionId) {
         }
 
         case "send_email": {
-            const recipient = action.config?.recipient === "[ Lead Email ]" ? lead.email : (action.config?.recipient || lead.email);
-            if (!recipient) {
+            let recipientInput = action.config?.recipient === "[ Lead Email ]" ? lead.email : (action.config?.recipient || lead.email);
+            if (recipientInput === "{{email}}") recipientInput = lead.email;
+            
+            if (!recipientInput) {
                 throw new Error("Recipient email address is missing");
             }
 
@@ -284,7 +286,7 @@ async function executeAction(action, lead, userId, executionId) {
                 const firstName = nameParts[0] || "";
                 const lastName = nameParts.slice(1).join(" ") || "";
 
-                const rendered = emailTemplateModel.renderTemplate(template, {
+                const vars = {
                     "firstName": firstName,
                     "lastName": lastName,
                     "email": lead.email || "",
@@ -298,53 +300,64 @@ async function executeAction(action, lead, userId, executionId) {
                     "lead.source": lead.source || "",
                     "lead.category": lead.ai_category || "N/A",
                     "company.name": "LeadFlow AI",
+                };
+                
+                body = emailTemplateModel.renderTemplate(template, vars);
+                
+                subject = template.subject;
+                Object.keys(vars).forEach(key => {
+                    const regex = new RegExp(`{{${key}}}`, "g");
+                    subject = subject.replace(regex, vars[key] || "");
                 });
-                subject = rendered.subject;
-                body = rendered.body;
             } else {
                 // Fallback: use basic email
                 subject = action.config?.subject || `Hello ${lead.name}`;
                 body = emailService.buildWelcomeEmail(lead.name);
             }
 
-            // Log the email attempt
-            const emailLog = await emailLogModel.create({
-                leadId: lead.id,
-                userId,
-                recipient,
-                subject,
-                templateId: template?.id || null,
-                workflowExecutionId: executionId,
-                status: "pending",
-                provider: "brevo"
-            });
+            // Support comma-separated emails
+            const recipients = recipientInput.split(",").map(r => r.trim()).filter(Boolean);
 
-            try {
-                const result = await emailService.sendEmail({
-                    to: recipient,
-                    cc: action.config?.cc,
-                    bcc: action.config?.bcc,
+            for (const r of recipients) {
+                // Log the email attempt
+                const emailLog = await emailLogModel.create({
+                    leadId: lead.id,
+                    userId,
+                    recipient: r,
                     subject,
-                    html: body,
-                    fromEmail: action.config?.fromEmail,
-                    fromName: action.config?.fromName
+                    templateId: template?.id || null,
+                    workflowExecutionId: executionId,
+                    status: "pending",
+                    provider: "brevo"
                 });
-                await emailLogModel.updateStatus(emailLog.id, "sent", result?.id || null, null);
-                await activityModel.create({
-                    leadId: lead.id,
-                    userId,
-                    type: "email_sent",
-                    description: `Email sent: "${subject}" via automation`,
-                });
-            } catch (err) {
-                await emailLogModel.updateStatus(emailLog.id, "failed", null, err.message);
-                await activityModel.create({
-                    leadId: lead.id,
-                    userId,
-                    type: "email_failed",
-                    description: `Email failed: "${subject}" - ${err.message}`,
-                });
-                throw err; // Rethrow to mark action as failed
+
+                try {
+                    const result = await emailService.sendEmail({
+                        to: r,
+                        cc: action.config?.cc,
+                        bcc: action.config?.bcc,
+                        subject,
+                        html: body,
+                        fromEmail: action.config?.fromEmail,
+                        fromName: action.config?.fromName
+                    });
+                    await emailLogModel.updateStatus(emailLog.id, "sent", result?.id || null, null);
+                    await activityModel.create({
+                        leadId: lead.id,
+                        userId,
+                        type: "email_sent",
+                        description: `Email sent: "${subject}" to ${r} via automation`,
+                    });
+                } catch (err) {
+                    await emailLogModel.updateStatus(emailLog.id, "failed", null, err.message);
+                    await activityModel.create({
+                        leadId: lead.id,
+                        userId,
+                        type: "email_failed",
+                        description: `Email failed: "${subject}" to ${r} - ${err.message}`,
+                    });
+                    // Don't throw here if we are looping multiple emails, maybe just record the failure
+                }
             }
             break;
         }

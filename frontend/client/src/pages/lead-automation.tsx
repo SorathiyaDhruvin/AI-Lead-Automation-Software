@@ -898,7 +898,7 @@ export default function LeadAutomationPage() {
                       <div>
                         <label className="text-xs font-medium text-muted-foreground mb-1 block">Recipient</label>
                         <Input
-                          placeholder="e.g. [ Lead Email ] or user@example.com"
+                          placeholder="e.g. [ Lead Email ] or user@example.com, other@gmail.com"
                           value={action.config?.recipient || ""}
                           onChange={(e) => {
                             const updated = [...newActions];
@@ -906,6 +906,7 @@ export default function LeadAutomationPage() {
                             setNewActions(updated);
                           }}
                         />
+                        <p className="text-[10px] text-muted-foreground mt-1">Comma-separated emails supported</p>
                       </div>
                       <div>
                         <label className="text-xs font-medium text-muted-foreground mb-1 block">CC (Optional)</label>

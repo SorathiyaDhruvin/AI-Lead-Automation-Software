@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Search, Filter, Sparkles, MoreHorizontal, Trash2, Eye } from "lucide-react";
+import { Plus, Search, Filter, Sparkles, MoreHorizontal, Trash2, Eye, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +34,7 @@ import { queryClient } from "@/lib/queryClient";
 import { ScoreBadge } from "@/components/score-badge";
 import { LeadDialog } from "@/components/lead-dialog";
 import { LeadDetailsSheet } from "@/components/lead-details-sheet";
+import { BulkEmailDialog } from "@/components/bulk-email-dialog";
 import { leadsService } from "@/services/leads";
 import type { Lead } from "@/types";
 import { useRoute, useLocation } from "wouter";
@@ -56,7 +58,9 @@ export default function LeadsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isBulkEmailOpen, setIsBulkEmailOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
 
   const { data: leads, isLoading } = useQuery<Lead[]>({
     queryKey: ["/api/leads"],
@@ -116,6 +120,24 @@ export default function LeadsPage() {
       .slice(0, 2);
   };
 
+  const toggleSelectAll = () => {
+    if (selectedLeadIds.size === filteredLeads?.length) {
+      setSelectedLeadIds(new Set());
+    } else {
+      setSelectedLeadIds(new Set(filteredLeads?.map(l => l.id)));
+    }
+  };
+
+  const toggleSelectLead = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newSet = new Set(selectedLeadIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedLeadIds(newSet);
+  };
+
+  const selectedLeadsObjects = filteredLeads?.filter(l => selectedLeadIds.has(l.id)) || [];
+
   if (isLeadNotFound) {
     return (
       <div className="p-6 flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -140,10 +162,18 @@ export default function LeadsPage() {
           <h1 className="text-2xl font-bold text-foreground">Leads</h1>
           <p className="text-muted-foreground">Manage and track your leads</p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} data-testid="button-add-lead">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Lead
-        </Button>
+        <div className="flex gap-2">
+          {selectedLeadIds.size > 0 && (
+            <Button variant="secondary" onClick={() => setIsBulkEmailOpen(true)}>
+              <Mail className="h-4 w-4 mr-2" />
+              Bulk Email ({selectedLeadIds.size})
+            </Button>
+          )}
+          <Button onClick={() => setIsDialogOpen(true)} data-testid="button-add-lead">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Lead
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -189,6 +219,13 @@ export default function LeadsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]">
+                      <Checkbox 
+                        checked={filteredLeads.length > 0 && selectedLeadIds.size === filteredLeads.length}
+                        onCheckedChange={toggleSelectAll}
+                        aria-label="Select all"
+                      />
+                    </TableHead>
                     <TableHead>Lead</TableHead>
                     <TableHead>Company</TableHead>
                     <TableHead>Status</TableHead>
@@ -205,6 +242,17 @@ export default function LeadsPage() {
                       onClick={() => setLocation(`/leads/${lead.id}`)}
                       data-testid={`row-lead-${lead.id}`}
                     >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox 
+                          checked={selectedLeadIds.has(lead.id)}
+                          onCheckedChange={() => {
+                            const newSet = new Set(selectedLeadIds);
+                            if (newSet.has(lead.id)) newSet.delete(lead.id);
+                            else newSet.add(lead.id);
+                            setSelectedLeadIds(newSet);
+                          }}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-9 w-9">
@@ -316,6 +364,12 @@ export default function LeadsPage() {
         isOpen={!!routeLeadId}
         isLoading={isDetailsLoading}
         onClose={() => setLocation("/leads")}
+      />
+
+      <BulkEmailDialog 
+        open={isBulkEmailOpen}
+        onOpenChange={setIsBulkEmailOpen}
+        selectedLeads={selectedLeadsObjects}
       />
     </div>
   );
