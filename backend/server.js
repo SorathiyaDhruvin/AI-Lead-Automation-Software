@@ -6,8 +6,9 @@ const PORT = process.env.PORT || 5000;
 
 // Test DB connection on startup, then start background processors
 pool.connect()
-    .then(() => {
+    .then((client) => {
         console.log("✅ PostgreSQL Connected");
+        client.release();
         // Start the scheduled action processor (runs every 60 seconds)
         scheduledProcessor.startProcessor(60000);
     })
