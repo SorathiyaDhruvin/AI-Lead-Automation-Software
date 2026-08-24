@@ -20,7 +20,10 @@ function getTransporter() {
             auth: {
                 user,
                 pass,
-            }
+            },
+            connectionTimeout: 10000, // 10 seconds
+            greetingTimeout: 10000,
+            socketTimeout: 15000,
         });
     }
     return _transporter;
@@ -62,6 +65,17 @@ async function sendEmail({ to, cc, bcc, subject, html, text, fromEmail, fromName
 
     try {
         console.log(`[EMAIL] EMAIL_SMTP_CONNECTED`);
+        
+        try {
+            await transporter.verify();
+        } catch (verifyErr) {
+            console.error(`[EMAIL] Brevo SMTP verification failed: ${verifyErr.message}`);
+            // Check for safe error
+            if (verifyErr.message && (verifyErr.message.includes('Invalid login') || verifyErr.message.includes('Authentication failed'))) {
+                throw new Error("Email service authentication failed. The SMTP user or password might be incorrect, or IP authorization is blocking the connection.");
+            }
+            throw new Error(`SMTP Verification failed: ${verifyErr.message}`);
+        }
         const mailOptions = {
             from: fromString,
             to,

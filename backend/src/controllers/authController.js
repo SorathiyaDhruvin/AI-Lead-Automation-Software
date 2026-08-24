@@ -69,7 +69,11 @@ const forgotPassword = asyncHandler(async (req, res) => {
         console.log(`[OTP EMAIL] Brevo accepted email: ${responseData?.id}`);
     } catch (err) {
         if (emailLog) {
-            await emailLogModel.updateStatus(emailLog.id, "failed", null, err.message);
+            try {
+                await emailLogModel.updateStatus(emailLog.id, "failed", null, err.message);
+            } catch (updateErr) {
+                console.error(`[OTP EMAIL] Failed to update email log status: ${updateErr.message}`);
+            }
         }
         console.error(`[OTP EMAIL ERROR] ${err.message}`);
 
