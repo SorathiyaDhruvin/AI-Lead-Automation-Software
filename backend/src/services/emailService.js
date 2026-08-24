@@ -1,59 +1,112 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
-let _resend = null;
+let _transporter = null;
 
-function getResendClient() {
-    if (!_resend) {
-        const apiKey = process.env.RESEND_API_KEY;
-        if (!apiKey) {
+function getTransporter() {
+    if (!_transporter) {
+        const host = process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com';
+        const port = process.env.BREVO_SMTP_PORT || 587;
+        const user = process.env.BREVO_SMTP_USER;
+        const pass = process.env.BREVO_SMTP_PASSWORD;
+
+        if (!user || !pass) {
             return null;
         }
-        _resend = new Resend(apiKey);
+
+        _transporter = nodemailer.createTransport({
+            host,
+            port,
+            secure: false, // true for 465, false for other ports
+            auth: {
+                user,
+                pass,
+            }
+        });
     }
-    return _resend;
+    return _transporter;
 }
 
 /**
- * Send an email using Resend.
- * Propagates errors instead of swallowing them.
- * Explicitly validates the Resend response including email ID.
+ * Send an email using Nodemailer and Brevo.
+ * @param {Object} options 
+ * @param {string} options.to - Recipient email(s)
+ * @param {string} [options.cc] - CC email(s)
+ * @param {string} [options.bcc] - BCC email(s)
+ * @param {string} options.subject - Email subject
+ * @param {string} [options.html] - Email HTML body
+ * @param {string} [options.text] - Email Plain Text body
+ * @param {string} [options.fromEmail] - Custom from email
+ * @param {string} [options.fromName] - Custom from name
  */
-async function sendEmail(to, subject, html) {
-    const client = getResendClient();
-    if (!client) {
-        throw new Error("Email service is not configured. Set RESEND_API_KEY in environment variables.");
+async function sendEmail({ to, cc, bcc, subject, html, text, fromEmail, fromName }) {
+    const transporter = getTransporter();
+    if (!transporter) {
+        throw new Error("Email service is not configured. Set BREVO_SMTP_USER and BREVO_SMTP_PASSWORD in environment variables.");
     }
 
-    const fromEmail = process.env.RESEND_FROM_EMAIL;
-    if (!fromEmail) {
-        throw new Error("RESEND_FROM_EMAIL is not configured in environment variables.");
+    const defaultFromEmail = process.env.BREVO_FROM_EMAIL;
+    const defaultFromName = process.env.BREVO_FROM_NAME || "LeadFlow AI";
+    
+    if (!defaultFromEmail) {
+        throw new Error("BREVO_FROM_EMAIL is not configured in environment variables.");
     }
 
-    console.log(`[OTP EMAIL] Sending "${subject}" to ${to}...`);
+    const senderEmail = fromEmail || defaultFromEmail;
+    const senderName = fromName || defaultFromName;
+    const fromString = `"${senderName}" <${senderEmail}>`;
+
+    console.log(`[EMAIL] Sending "${subject}" to ${to}...`);
 
     try {
-        const { data, error } = await client.emails.send({
-            from: fromEmail,
-            to: [to],
+        const mailOptions = {
+            from: fromString,
+            to,
             subject,
-            html
-        });
+        };
 
-        if (error) {
-            console.error("[RESEND ERROR]", error);
-            throw new Error(error.message || "Resend email failed");
-        }
+        if (cc) mailOptions.cc = cc;
+        if (bcc) mailOptions.bcc = bcc;
+        if (html) mailOptions.html = html;
+        if (text) mailOptions.text = text;
 
-        if (!data || !data.id) {
-            throw new Error("Resend did not return an email ID");
-        }
+        const info = await transporter.sendMail(mailOptions);
 
-        console.log(`[OTP EMAIL] Resend accepted email: ${data.id}`);
-        return data;
+        console.log(`[EMAIL] Accepted email: ${info.messageId}`);
+        // info.messageId is standard in nodemailer, representing the backend message ID
+        return {
+            id: info.messageId,
+            response: info.response
+        };
     } catch (err) {
-        console.error(`[OTP EMAIL] Failed to send email to ${to}: ${err.message}`);
-        throw err;
+        console.error(`[EMAIL] Failed to send email to ${to}: ${err.message}`);
+        // Do not leak SMTP credentials to frontend in case of auth error
+        if (err.message && err.message.includes('Invalid login')) {
+             throw new Error("Email service authentication failed. Please check backend SMTP credentials.");
+        }
+        throw new Error(`Email delivery failed: ${err.message}`);
     }
+}
+
+/**
+ * Send a test email to verify configuration.
+ */
+async function sendTestEmail(to) {
+    const html = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
+      <h2 style="color: #2563EB; margin-top: 0;">LeadFlow AI Email Test</h2>
+      <p>This is a test email from LeadFlow AI.</p>
+      <p>If you received this email, your email configuration via Brevo is working correctly.</p>
+      <p style="color: #6b7280; font-size: 13px; margin-top: 16px;">Sent at: ${new Date().toISOString()}</p>
+      <br/>
+      <p style="color: #6C5CE7; font-weight: bold; margin-bottom: 0;">The LeadFlow AI Team</p>
+    </div>
+    `;
+
+    return sendEmail({
+        to,
+        subject: "LeadFlow AI Email Test",
+        html
+    });
 }
 
 /**
@@ -87,25 +140,6 @@ function buildOtpEmail(firstName, otp) {
       </div>
     </div>
     `;
-}
-
-/**
- * Send a test email to verify Resend configuration.
- * Returns the Resend response data including email ID.
- */
-async function sendTestEmail(to) {
-    const html = `
-    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
-      <h2 style="color: #2563EB; margin-top: 0;">LeadFlow AI Email Test</h2>
-      <p>This is a test email from LeadFlow AI.</p>
-      <p>If you received this email, your email configuration is working correctly.</p>
-      <p style="color: #6b7280; font-size: 13px; margin-top: 16px;">Sent at: ${new Date().toISOString()}</p>
-      <br/>
-      <p style="color: #6C5CE7; font-weight: bold; margin-bottom: 0;">The LeadFlow AI Team</p>
-    </div>
-    `;
-
-    return sendEmail(to, "LeadFlow AI Email Test", html);
 }
 
 function buildWelcomeEmail(leadName) {
@@ -164,7 +198,7 @@ function buildRejectionEmail(leadName, reason) {
  * Check if the email service is properly configured.
  */
 function isConfigured() {
-    return !!(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL);
+    return !!(process.env.BREVO_SMTP_USER && process.env.BREVO_SMTP_PASSWORD && process.env.BREVO_FROM_EMAIL);
 }
 
 module.exports = {

@@ -270,8 +270,9 @@ async function executeAction(action, lead, userId, executionId) {
         }
 
         case "send_email": {
-            if (!lead.email) {
-                throw new Error("Lead has no email address");
+            const recipient = action.config?.recipient === "[ Lead Email ]" ? lead.email : (action.config?.recipient || lead.email);
+            if (!recipient) {
+                throw new Error("Recipient email address is missing");
             }
 
             const templateName = action.value || action.config?.template || "Welcome Email";
@@ -279,7 +280,16 @@ async function executeAction(action, lead, userId, executionId) {
 
             let subject, body;
             if (template) {
+                const nameParts = (lead.name || "").split(" ");
+                const firstName = nameParts[0] || "";
+                const lastName = nameParts.slice(1).join(" ") || "";
+
                 const rendered = emailTemplateModel.renderTemplate(template, {
+                    "firstName": firstName,
+                    "lastName": lastName,
+                    "email": lead.email || "",
+                    "company": lead.company || "",
+                    "phone": lead.phone || "",
                     "lead.name": lead.name || "",
                     "lead.email": lead.email || "",
                     "lead.company": lead.company || "N/A",
@@ -301,15 +311,24 @@ async function executeAction(action, lead, userId, executionId) {
             const emailLog = await emailLogModel.create({
                 leadId: lead.id,
                 userId,
-                recipient: lead.email,
+                recipient,
                 subject,
                 templateId: template?.id || null,
                 workflowExecutionId: executionId,
                 status: "pending",
+                provider: "brevo"
             });
 
             try {
-                const result = await emailService.sendEmail(lead.email, subject, body);
+                const result = await emailService.sendEmail({
+                    to: recipient,
+                    cc: action.config?.cc,
+                    bcc: action.config?.bcc,
+                    subject,
+                    html: body,
+                    fromEmail: action.config?.fromEmail,
+                    fromName: action.config?.fromName
+                });
                 await emailLogModel.updateStatus(emailLog.id, "sent", result?.id || null, null);
                 await activityModel.create({
                     leadId: lead.id,

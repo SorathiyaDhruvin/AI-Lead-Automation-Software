@@ -22,6 +22,7 @@ const adminRoutes = require("./routes/adminRoutes");
 const workflowRoutes = require("./routes/workflowRoutes");
 const emailTemplateRoutes = require("./routes/emailTemplateRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
+const emailRoutes = require("./routes/emailRoutes");
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/workflows", workflowRoutes);
 app.use("/api/email-templates", emailTemplateRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/email", emailRoutes);
 
 // ── Root route ──
 app.get("/", (req, res) => {

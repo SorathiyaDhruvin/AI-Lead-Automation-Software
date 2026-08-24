@@ -102,7 +102,7 @@ export default function LeadAutomationPage() {
   const [newWorkflowDescription, setNewWorkflowDescription] = useState("");
   const [newWorkflowTrigger, setNewWorkflowTrigger] = useState("");
   const [newConditions, setNewConditions] = useState<Array<{ type: string; value: string }>>([]);
-  const [newActions, setNewActions] = useState<Array<{ type: string; name: string; value: string }>>([]);
+  const [newActions, setNewActions] = useState<Array<{ type: string; name: string; value: string; config?: Record<string, any> }>>([]);
 
   // Rule creation form state
   const [ruleName, setRuleName] = useState("");
@@ -186,7 +186,7 @@ export default function LeadAutomationPage() {
         description: newWorkflowDescription || undefined,
         triggerType: newWorkflowTrigger,
         conditions: newConditions.map(c => ({ type: c.type, value: c.value })),
-        actions: newActions.map(a => ({ type: a.type, name: a.name, value: a.value })),
+        actions: newActions.map(a => ({ type: a.type, name: a.name, value: a.value, config: a.config })),
         isActive: true,
       });
     },
@@ -285,7 +285,7 @@ export default function LeadAutomationPage() {
   }
 
   function addAction() {
-    setNewActions(prev => [...prev, { type: "", name: "", value: "" }]);
+    setNewActions(prev => [...prev, { type: "", name: "", value: "", config: {} }]);
   }
 
   function removeCondition(index: number) {
@@ -836,41 +836,127 @@ export default function LeadAutomationPage() {
                 </Button>
               </div>
               {newActions.map((action, i) => (
-                <div key={i} className="flex gap-2 mb-2">
-                  <Select
-                    value={action.type}
-                    onValueChange={(val) => {
-                      const updated = [...newActions];
-                      updated[i].type = val;
-                      updated[i].name = actionTypeOptions.find(a => a.id === val)?.name || val;
-                      setNewActions(updated);
-                    }}
-                  >
-                    <SelectTrigger className="flex-1"><SelectValue placeholder="Action type" /></SelectTrigger>
-                    <SelectContent>
-                      {actionTypeOptions.map(opt => (
-                        <SelectItem key={opt.id} value={opt.id}>
-                          <div className="flex items-center gap-2">
-                            <opt.icon className="h-4 w-4" />
-                            {opt.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder="Value (e.g. template name, status)"
-                    value={action.value}
-                    onChange={(e) => {
-                      const updated = [...newActions];
-                      updated[i].value = e.target.value;
-                      setNewActions(updated);
-                    }}
-                    className="flex-1"
-                  />
-                  <Button variant="ghost" size="icon" onClick={() => removeAction(i)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+                <div key={i} className="flex flex-col gap-2 mb-4 p-3 border rounded-md relative bg-muted/20">
+                  <div className="flex gap-2">
+                    <Select
+                      value={action.type}
+                      onValueChange={(val) => {
+                        const updated = [...newActions];
+                        updated[i].type = val;
+                        updated[i].name = actionTypeOptions.find(a => a.id === val)?.name || val;
+                        if (val === "send_email") {
+                          updated[i].config = { recipient: "[ Lead Email ]" };
+                        }
+                        setNewActions(updated);
+                      }}
+                    >
+                      <SelectTrigger className="flex-1"><SelectValue placeholder="Action type" /></SelectTrigger>
+                      <SelectContent>
+                        {actionTypeOptions.map(opt => (
+                          <SelectItem key={opt.id} value={opt.id}>
+                            <div className="flex items-center gap-2">
+                              <opt.icon className="h-4 w-4" />
+                              {opt.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    {action.type !== "send_email" && (
+                      <Input
+                        placeholder="Value (e.g. status)"
+                        value={action.value}
+                        onChange={(e) => {
+                          const updated = [...newActions];
+                          updated[i].value = e.target.value;
+                          setNewActions(updated);
+                        }}
+                        className="flex-1"
+                      />
+                    )}
+                    
+                    <Button variant="ghost" size="icon" onClick={() => removeAction(i)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+
+                  {action.type === "send_email" && (
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Template Name</label>
+                        <Input
+                          placeholder="Template Name"
+                          value={action.value}
+                          onChange={(e) => {
+                            const updated = [...newActions];
+                            updated[i].value = e.target.value;
+                            setNewActions(updated);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Recipient</label>
+                        <Input
+                          placeholder="e.g. [ Lead Email ] or user@example.com"
+                          value={action.config?.recipient || ""}
+                          onChange={(e) => {
+                            const updated = [...newActions];
+                            updated[i].config = { ...updated[i].config, recipient: e.target.value };
+                            setNewActions(updated);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">CC (Optional)</label>
+                        <Input
+                          placeholder="CC Emails"
+                          value={action.config?.cc || ""}
+                          onChange={(e) => {
+                            const updated = [...newActions];
+                            updated[i].config = { ...updated[i].config, cc: e.target.value };
+                            setNewActions(updated);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">BCC (Optional)</label>
+                        <Input
+                          placeholder="BCC Emails"
+                          value={action.config?.bcc || ""}
+                          onChange={(e) => {
+                            const updated = [...newActions];
+                            updated[i].config = { ...updated[i].config, bcc: e.target.value };
+                            setNewActions(updated);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Sender Name (Optional)</label>
+                        <Input
+                          placeholder="Sender Name"
+                          value={action.config?.fromName || ""}
+                          onChange={(e) => {
+                            const updated = [...newActions];
+                            updated[i].config = { ...updated[i].config, fromName: e.target.value };
+                            setNewActions(updated);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Sender Email (Optional)</label>
+                        <Input
+                          placeholder="Sender Email"
+                          value={action.config?.fromEmail || ""}
+                          onChange={(e) => {
+                            const updated = [...newActions];
+                            updated[i].config = { ...updated[i].config, fromEmail: e.target.value };
+                            setNewActions(updated);
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
