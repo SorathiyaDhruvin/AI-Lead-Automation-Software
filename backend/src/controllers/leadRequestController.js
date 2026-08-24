@@ -139,11 +139,11 @@ const adminUpdateStatus = asyncHandler(async (req, res) => {
                     status: "pending",
                 });
 
-                emailService.sendEmail(
-                    request.email,
-                    `Your Request Has Been Approved, ${request.contact_name}!`,
-                    emailService.buildApprovalEmail(request.contact_name)
-                ).then(result => {
+                emailService.sendEmail({
+                    to: request.email,
+                    subject: `Your Request Has Been Approved, ${request.contact_name}!`,
+                    html: emailService.buildApprovalEmail(request.contact_name)
+                }).then(result => {
                     emailLogModel.updateStatus(emailLog.id, "sent", result?.id || null, null);
                     activityModel.create({
                         leadId: lead.id,

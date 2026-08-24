@@ -92,9 +92,16 @@ const createLead = asyncHandler(async (req, res) => {
         message: `New lead added: ${lead.name} (${lead.email})`
     }).catch((err) => console.error("Notification creation error:", err));
 
-    // Send welcome email (fire-and-forget)
-    emailService.sendEmail(lead.email, "Welcome to LeadFlow!", emailService.buildWelcomeEmail(lead.name))
-        .catch((err) => console.error("Welcome email send error:", err.message));
+    // Async trigger welcome email if lead has email
+    if (lead.email && emailService.isConfigured()) {
+        emailService.sendEmail({
+            to: lead.email, 
+            subject: "Welcome to LeadFlow!", 
+            html: emailService.buildWelcomeEmail(lead.name)
+        })
+            .then(result => console.log(`Welcome email accepted by Brevo for ${lead.email}: ${result?.id}`))
+            .catch(err => console.error(`Failed to send welcome email to ${lead.email}:`, err.message));
+    }
 
     // Trigger automation workflows for lead_created event
     automationEngine.triggerEvent("lead_created", lead, req.userId)
@@ -329,7 +336,11 @@ const sendLeadEmail = asyncHandler(async (req, res) => {
     }
 
     try {
-        await emailService.sendEmail(lead.email, subject, emailService.buildFollowUpEmail(lead.name, message));
+        await emailService.sendEmail({
+            to: lead.email,
+            subject,
+            html: emailService.buildFollowUpEmail(lead.name, message)
+        });
         
         await activityModel.create({
             leadId: lead.id,

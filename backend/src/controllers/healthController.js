@@ -1,8 +1,9 @@
 const pool = require("../config/db");
+const emailService = require("../services/emailService");
 
 /**
  * GET /api/health
- * Returns API health status including DB, AI (Gemini), and Email (Resend) configuration checks.
+ * Returns API health status including DB, AI (Gemini), and Email configuration checks.
  */
 const getHealth = async (req, res) => {
     let dbStatus = "disconnected";
@@ -18,7 +19,7 @@ const getHealth = async (req, res) => {
     }
 
     const aiStatus = process.env.GEMINI_API_KEY ? "configured" : "missing";
-    const emailStatus = process.env.RESEND_API_KEY ? "configured" : "missing";
+    const emailStatus = emailService.isConfigured() ? "configured" : "missing";
 
     res.json({
         success: true,
@@ -33,15 +34,8 @@ const getHealth = async (req, res) => {
  * Returns email service configuration status without exposing secrets.
  */
 const getEmailHealth = async (req, res) => {
-    const hasApiKey = !!process.env.RESEND_API_KEY;
-    const hasFromEmail = !!process.env.RESEND_FROM_EMAIL;
-
-    res.json({
-        configured: hasApiKey && hasFromEmail,
-        provider: "resend",
-        from: hasFromEmail ? "configured" : "missing",
-        apiKey: hasApiKey ? "configured" : "missing",
-    });
+    const health = await emailService.checkSmtpConnection();
+    res.json(health);
 };
 
 module.exports = { getHealth, getEmailHealth };

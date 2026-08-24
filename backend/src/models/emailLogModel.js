@@ -1,7 +1,7 @@
 const pool = require("../config/db");
 
 const emailLogModel = {
-    async create({ leadId, userId, recipient, subject, templateId, workflowExecutionId, provider = "resend", status = "pending", providerMessageId, error }) {
+    async create({ leadId, userId, recipient, subject, templateId, workflowExecutionId, provider = "brevo", status = "pending", providerMessageId, error }) {
         const { rows } = await pool.query(
             `INSERT INTO email_logs (lead_id, user_id, recipient, subject, template_id, workflow_execution_id, provider, status, provider_message_id, error, sent_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())

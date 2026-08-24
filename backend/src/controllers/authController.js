@@ -46,11 +46,15 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
     console.log(`[OTP EMAIL] Sending password reset email to ${user.email}`);
 
-    // Send OTP email via Resend
+    // Send OTP email via Brevo
     try {
         const emailHtml = buildOtpEmail(user.first_name, otp);
-        const responseData = await sendEmail(user.email, "Your LeadFlow AI Password Reset Code", emailHtml);
-        console.log(`[OTP EMAIL] Resend accepted email: ${responseData?.id}`);
+        const responseData = await sendEmail({
+            to: user.email,
+            subject: "Your LeadFlow AI Password Reset Code",
+            html: emailHtml
+        });
+        console.log(`[OTP EMAIL] Brevo accepted email: ${responseData?.id}`);
     } catch (err) {
         console.error(`[OTP EMAIL ERROR] ${err.message}`);
 
@@ -181,7 +185,7 @@ const resetPassword = asyncHandler(async (req, res) => {
 
 /**
  * POST /api/auth/test-email (development/admin only)
- * Sends a test email to verify Resend configuration.
+ * Sends a test email to verify Brevo configuration.
  */
 const testEmail = asyncHandler(async (req, res) => {
     // Only allow in non-production environments
