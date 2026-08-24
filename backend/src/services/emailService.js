@@ -133,10 +133,47 @@ function buildFollowUpEmail(leadName, message) {
     `;
 }
 
+function buildApprovalEmail(leadName) {
+    return `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
+      <h2 style="color: #00D68F; margin-top: 0;">Request Approved!</h2>
+      <p>Hi ${leadName},</p>
+      <p>Great news! Your lead request has been approved by our team.</p>
+      <p>A member of our sales team will reach out to you shortly to discuss next steps.</p>
+      <br/>
+      <p style="color: #6C5CE7; font-weight: bold; margin-bottom: 0;">The LeadFlow Team</p>
+    </div>
+    `;
+}
+
+function buildRejectionEmail(leadName, reason) {
+    return `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
+      <h2 style="color: #6b7280; margin-top: 0;">Request Update</h2>
+      <p>Hi ${leadName},</p>
+      <p>Thank you for your interest. After careful review, we are unable to proceed with your request at this time.</p>
+      ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ""}
+      <p>Please feel free to reach out if you have any questions or would like to discuss further.</p>
+      <br/>
+      <p style="color: #6C5CE7; font-weight: bold; margin-bottom: 0;">The LeadFlow Team</p>
+    </div>
+    `;
+}
+
+/**
+ * Check if the email service is properly configured.
+ */
+function isConfigured() {
+    return !!(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL);
+}
+
 module.exports = {
     sendEmail,
     sendTestEmail,
     buildOtpEmail,
     buildWelcomeEmail,
-    buildFollowUpEmail
+    buildFollowUpEmail,
+    buildApprovalEmail,
+    buildRejectionEmail,
+    isConfigured
 };

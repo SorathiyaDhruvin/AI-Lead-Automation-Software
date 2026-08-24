@@ -19,6 +19,9 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const insightsRoutes = require("./routes/insightsRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const workflowRoutes = require("./routes/workflowRoutes");
+const emailTemplateRoutes = require("./routes/emailTemplateRoutes");
+const settingsRoutes = require("./routes/settingsRoutes");
 
 const app = express();
 
@@ -42,6 +45,9 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/insights", insightsRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/workflows", workflowRoutes);
+app.use("/api/email-templates", emailTemplateRoutes);
+app.use("/api/settings", settingsRoutes);
 
 // ── Root route ──
 app.get("/", (req, res) => {

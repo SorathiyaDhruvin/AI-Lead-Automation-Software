@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Bell,
   Settings as SettingsIcon,
@@ -13,6 +14,7 @@ import {
   Laptop,
   AlertTriangle,
   Trash2,
+  Workflow,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -46,6 +48,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { settingsService } from "@/services/settings";
+import { queryClient } from "@/lib/queryClient";
 
 const settingsSchema = z.object({
   theme: z.string().optional(),
@@ -53,6 +57,10 @@ const settingsSchema = z.object({
   emailNotifications: z.boolean().default(true),
   smsNotifications: z.boolean().default(false),
   marketingEmails: z.boolean().default(false),
+  leadAlerts: z.boolean().default(true),
+  automationAlerts: z.boolean().default(true),
+  dailyDigest: z.boolean().default(false),
+  automationEnabled: z.boolean().default(true),
 });
 
 type SettingsForm = z.infer<typeof settingsSchema>;
@@ -60,7 +68,6 @@ type SettingsForm = z.infer<typeof settingsSchema>;
 export default function SettingsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [isSaving, setIsSaving] = useState(false);
 
   const settingsForm = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
@@ -70,13 +77,45 @@ export default function SettingsPage() {
       emailNotifications: true,
       smsNotifications: false,
       marketingEmails: false,
+      leadAlerts: true,
+      automationAlerts: true,
+      dailyDigest: false,
+      automationEnabled: true,
     },
   });
 
   const { isDirty } = settingsForm.formState;
 
-  const handleSaveSettings = async (data: SettingsForm) => {
-    setIsSaving(true);
+  // Load settings from API
+  const { data: dbSettings, isLoading } = useQuery({
+    queryKey: ["/api/settings"],
+    queryFn: () => settingsService.get(),
+  });
+
+  // Update form when DB settings load
+  useEffect(() => {
+    if (dbSettings) {
+      settingsForm.reset({
+        ...dbSettings,
+        theme: dbSettings.theme || localStorage.getItem("theme") || "system",
+      });
+    }
+  }, [dbSettings, settingsForm]);
+
+  // Save settings to API
+  const updateSettingsMutation = useMutation({
+    mutationFn: (data: SettingsForm) => settingsService.update(data),
+    onSuccess: (updatedSettings) => {
+      queryClient.setQueryData(["/api/settings"], updatedSettings);
+      settingsForm.reset(updatedSettings); // Reset dirty state
+      toast({ title: "Settings saved", description: "Your preferences have been updated." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to save settings", variant: "destructive" });
+    },
+  });
+
+  const handleSaveSettings = (data: SettingsForm) => {
     // Apply theme immediately
     if (data.theme === "dark") {
       document.documentElement.classList.add("dark");
@@ -93,12 +132,8 @@ export default function SettingsPage() {
       }
     }
 
-    // Mock API save delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    
-    setIsSaving(false);
-    toast({ title: "Settings saved", description: "Your preferences have been updated." });
-    settingsForm.reset(data); // Reset dirty state
+    // Persist to DB
+    updateSettingsMutation.mutate(data);
   };
 
   const handleDeleteAccount = async () => {
@@ -110,12 +145,15 @@ export default function SettingsPage() {
     });
   };
 
+  if (isLoading) {
+    return <div className="p-8 text-center text-muted-foreground">Loading settings...</div>;
+  }
+
   return (
     <div className="p-4 md:p-8 max-w-[1000px] mx-auto w-full pb-24">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div>
-         
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Settings</h1>
           <p className="text-muted-foreground mt-1">Manage your application preferences and account security.</p>
         </div>
@@ -131,16 +169,16 @@ export default function SettingsPage() {
               <Button 
                 variant="outline" 
                 onClick={() => settingsForm.reset()}
-                disabled={isSaving}
+                disabled={updateSettingsMutation.isPending}
               >
                 <X className="h-4 w-4 mr-2" /> Cancel
               </Button>
               <Button 
                 onClick={settingsForm.handleSubmit(handleSaveSettings)}
-                disabled={isSaving}
+                disabled={updateSettingsMutation.isPending}
                 className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
               >
-                {isSaving ? "Saving..." : <><Save className="h-4 w-4 mr-2" /> Save Changes</>}
+                {updateSettingsMutation.isPending ? "Saving..." : <><Save className="h-4 w-4 mr-2" /> Save Changes</>}
               </Button>
             </motion.div>
           )}
@@ -163,7 +201,7 @@ export default function SettingsPage() {
                   <FormField control={settingsForm.control} name="theme" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Theme Preference</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl><SelectTrigger><SelectValue placeholder="Select theme" /></SelectTrigger></FormControl>
                         <SelectContent>
                           <SelectItem value="light">
@@ -184,7 +222,7 @@ export default function SettingsPage() {
                   <FormField control={settingsForm.control} name="timezone" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Time Zone</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl><SelectTrigger><SelectValue placeholder="Select timezone" /></SelectTrigger></FormControl>
                         <SelectContent>
                           <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
@@ -197,6 +235,31 @@ export default function SettingsPage() {
                     </FormItem>
                   )} />
                 </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Automation Configuration */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+            <Card className="border-border/50 shadow-sm overflow-hidden">
+              <CardHeader className="bg-muted/10 border-b pb-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Workflow className="h-5 w-5 text-primary" /> Automation
+                </CardTitle>
+                <CardDescription>Global controls for your workflow engine.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <FormField control={settingsForm.control} name="automationEnabled" render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Enable Automation Engine</FormLabel>
+                      <div className="text-sm text-muted-foreground">
+                        If disabled, no workflows will execute regardless of their individual status.
+                      </div>
+                    </div>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  </FormItem>
+                )} />
               </CardContent>
             </Card>
           </motion.div>
@@ -214,28 +277,46 @@ export default function SettingsPage() {
                 <FormField control={settingsForm.control} name="emailNotifications" render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
                     <div className="space-y-0.5">
-                      <FormLabel className="text-base">Email Notifications</FormLabel>
-                      <div className="text-sm text-muted-foreground">Receive daily digests and lead alerts.</div>
+                      <FormLabel className="text-base">Global Email Notifications</FormLabel>
+                      <div className="text-sm text-muted-foreground">Master switch for all system emails sent to you.</div>
                     </div>
                     <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={settingsForm.control} name="leadAlerts" render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Lead Alerts</FormLabel>
+                      <div className="text-sm text-muted-foreground">Notify me when hot leads are identified or assigned.</div>
+                    </div>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={!settingsForm.watch("emailNotifications")} /></FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={settingsForm.control} name="automationAlerts" render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Automation Errors</FormLabel>
+                      <div className="text-sm text-muted-foreground">Notify me if a workflow execution fails.</div>
+                    </div>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={!settingsForm.watch("emailNotifications")} /></FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={settingsForm.control} name="dailyDigest" render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Daily Digest</FormLabel>
+                      <div className="text-sm text-muted-foreground">Receive a daily summary of lead activity.</div>
+                    </div>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={!settingsForm.watch("emailNotifications")} /></FormControl>
                   </FormItem>
                 )} />
                 <FormField control={settingsForm.control} name="smsNotifications" render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm opacity-60">
                     <div className="space-y-0.5">
-                      <FormLabel className="text-base">SMS Notifications</FormLabel>
-                      <div className="text-sm text-muted-foreground">Receive urgent alerts via text messages.</div>
+                      <FormLabel className="text-base">SMS Notifications <span className="ml-2 text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">Not configured</span></FormLabel>
+                      <div className="text-sm text-muted-foreground">Receive urgent alerts via text messages. (Requires SMS provider integration)</div>
                     </div>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={settingsForm.control} name="marketingEmails" render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Marketing Emails</FormLabel>
-                      <div className="text-sm text-muted-foreground">Receive product updates and newsletters.</div>
-                    </div>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled /></FormControl>
                   </FormItem>
                 )} />
               </CardContent>

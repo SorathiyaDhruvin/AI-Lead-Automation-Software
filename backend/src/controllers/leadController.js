@@ -4,6 +4,7 @@ const noteModel = require("../models/noteModel");
 const notificationModel = require("../models/notificationModel");
 const geminiService = require("../services/geminiService");
 const emailService = require("../services/emailService");
+const automationEngine = require("../services/automationEngine");
 const { asyncHandler } = require("../middleware/errorHandler");
 
 /**
@@ -95,6 +96,10 @@ const createLead = asyncHandler(async (req, res) => {
     emailService.sendEmail(lead.email, "Welcome to LeadFlow!", emailService.buildWelcomeEmail(lead.name))
         .catch((err) => console.error("Welcome email send error:", err.message));
 
+    // Trigger automation workflows for lead_created event
+    automationEngine.triggerEvent("lead_created", lead, req.userId)
+        .catch((err) => console.error("Automation trigger error:", err.message));
+
     res.status(201).json({
         success: true,
         message: "Lead created successfully",
@@ -138,6 +143,12 @@ const updateLead = asyncHandler(async (req, res) => {
             type: "status_changed",
             message: `${lead.name} moved to "${lead.status}"`
         }).catch((err) => console.error("Notification creation error:", err));
+
+        // Trigger automation for status change
+        automationEngine.triggerEvent("lead_status_changed", lead, req.userId, {
+            oldStatus: existing.status,
+            newStatus: lead.status,
+        }).catch((err) => console.error("Automation trigger error:", err.message));
     }
 
     res.json({
@@ -218,6 +229,13 @@ const scoreLead = asyncHandler(async (req, res) => {
             success: true,
             data: updatedLead,
         });
+
+        // Trigger automation for lead_scored event (fire-and-forget, after response)
+        automationEngine.triggerEvent("lead_scored", updatedLead, req.userId, {
+            score: result.score,
+            category: result.category,
+        }).catch((err) => console.error("Automation trigger error:", err.message));
+
     } catch (error) {
         console.error("AI Lead Scoring Controller Error:", error.message);
         res.status(500).json({ 

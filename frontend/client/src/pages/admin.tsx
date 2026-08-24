@@ -89,16 +89,29 @@ export default function AdminPage() {
     mutationFn: async ({ id, status, adminNotes }: { id: string; status: string; adminNotes?: string }) => {
       return adminService.updateLeadRequest(id, { status, adminNotes });
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/lead-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       setSelectedRequest(null);
       setNewStatus("");
       setAdminNotes("");
-      toast({
-        title: "Request Updated",
-        description: "The lead request status has been updated.",
-      });
+
+      if (variables.status === "approved") {
+        toast({
+          title: "Request Approved",
+          description: "A new lead has been created and an approval email was sent.",
+        });
+      } else if (variables.status === "rejected") {
+        toast({
+          title: "Request Rejected",
+          description: "The request was rejected and the user has been notified.",
+        });
+      } else {
+        toast({
+          title: "Request Updated",
+          description: "The lead request status has been updated.",
+        });
+      }
     },
     onError: () => {
       toast({

@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   LogOut,
   User as UserIcon,
+  Activity,
+  Mail
 } from "lucide-react";
 import {
   LineChart,
@@ -98,6 +100,27 @@ export function DashboardPage() {
       subtitle: "Won / total leads",
       color: "bg-accent/10 text-accent-foreground",
     },
+    {
+      title: "Auto Executions",
+      value: stats?.automationExecutions ?? 0,
+      icon: Activity,
+      subtitle: `${stats?.automationSuccessRate ?? 0}% success rate`,
+      color: "bg-purple-500/10 text-purple-500",
+    },
+    {
+      title: "Emails Sent",
+      value: stats?.emailsSent ?? 0,
+      icon: Mail,
+      subtitle: `${stats?.emailsFailed ?? 0} failed`,
+      color: "bg-blue-500/10 text-blue-500",
+    },
+    {
+      title: "Warm / Cold",
+      value: `${stats?.warmLeads ?? 0} / ${stats?.coldLeads ?? 0}`,
+      icon: Target,
+      subtitle: "AI Categorization",
+      color: "bg-orange-500/10 text-orange-500",
+    },
   ];
 
   const trendData = (stats?.dailyTrend ?? []).map((d) => ({
@@ -123,7 +146,7 @@ export function DashboardPage() {
 
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
         {statCards.map((stat, index) => (
           <Card key={index} data-testid={`card-stat-${stat.title.toLowerCase().replace(/[\s.%]+/g, "-")}`}>
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
