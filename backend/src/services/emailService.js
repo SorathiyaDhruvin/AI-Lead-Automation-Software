@@ -5,7 +5,14 @@ let _transporter = null;
 function getTransporter() {
     if (!_transporter) {
         const host = process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com';
-        const port = process.env.BREVO_SMTP_PORT || 587;
+        let port = Number(process.env.BREVO_SMTP_PORT) || 2525; // Render free tier blocks 587 and 25; 2525 is a safe alternative
+        
+        // Render blocks outbound port 587. If we detect Render, auto-correct the port to 2525.
+        if (port === 587 && process.env.RENDER) {
+            console.warn("[EMAIL] Auto-correcting SMTP port from 587 to 2525 (Render outbound restriction bypass)");
+            port = 2525;
+        }
+
         const user = process.env.BREVO_SMTP_USER;
         const pass = process.env.BREVO_SMTP_PASSWORD;
 
@@ -13,10 +20,12 @@ function getTransporter() {
             return null;
         }
 
+        const isSecure = port === 465;
+
         _transporter = nodemailer.createTransport({
             host,
             port,
-            secure: false, // true for 465, false for other ports
+            secure: isSecure, // true for 465, false for other ports
             auth: {
                 user,
                 pass,

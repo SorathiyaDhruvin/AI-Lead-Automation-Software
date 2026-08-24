@@ -2,7 +2,7 @@ require('dotenv').config({ path: './.env' });
 const nodemailer = require('nodemailer');
 
 const host = process.env.BREVO_SMTP_HOST;
-const port = process.env.BREVO_SMTP_PORT;
+const port = 2525;
 const user = process.env.BREVO_SMTP_USER;
 // Use the new password from user prompt
 const pass = process.env.BREVO_SMTP_PASSWORD;
