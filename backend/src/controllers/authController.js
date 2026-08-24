@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
 const userModel = require("../models/userModel");
 const passwordResetModel = require("../models/passwordResetModel");
+const emailLogModel = require("../models/emailLogModel");
 const { sendEmail, buildOtpEmail, sendTestEmail: sendTestEmailService } = require("../services/emailService");
 const { asyncHandler } = require("../middleware/errorHandler");
 
@@ -47,15 +48,29 @@ const forgotPassword = asyncHandler(async (req, res) => {
     console.log(`[OTP EMAIL] Sending password reset email to ${user.email}`);
 
     // Send OTP email via Brevo
+    let emailLog;
     try {
+        emailLog = await emailLogModel.create({
+            userId: user.id,
+            recipient: user.email,
+            subject: "Your LeadFlow AI Password Reset Code",
+            status: "pending",
+            provider: "brevo"
+        });
+
         const emailHtml = buildOtpEmail(user.first_name, otp);
         const responseData = await sendEmail({
             to: user.email,
             subject: "Your LeadFlow AI Password Reset Code",
             html: emailHtml
         });
+        
+        await emailLogModel.updateStatus(emailLog.id, "sent", responseData?.id || null, null);
         console.log(`[OTP EMAIL] Brevo accepted email: ${responseData?.id}`);
     } catch (err) {
+        if (emailLog) {
+            await emailLogModel.updateStatus(emailLog.id, "failed", null, err.message);
+        }
         console.error(`[OTP EMAIL ERROR] ${err.message}`);
 
         // Clean up the OTP record since email was never delivered
