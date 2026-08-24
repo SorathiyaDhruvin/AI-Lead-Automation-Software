@@ -17,81 +17,12 @@ const supabase = createClient(
  * If email delivery fails, the OTP row is cleaned up.
  */
 const forgotPassword = asyncHandler(async (req, res) => {
-    const { email } = req.body;
-    if (!email || typeof email !== "string") {
-        return res.status(400).json({ success: false, message: "Email is required" });
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-
-    const user = await userModel.getByEmail(normalizedEmail);
-    if (!user) {
-        // Return success to prevent email enumeration
-        return res.json({ success: true, message: "If that email exists, an OTP has been sent." });
-    }
-
-    // Invalidate previous active OTPs for this user/email
-    await passwordResetModel.invalidateAllForUser(user.email);
-
-    // Generate crypto-safe 6-digit OTP (100000–999999)
-    const otp = crypto.randomInt(100000, 1000000).toString();
-    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    // Save OTP to database
-    const otpRecord = await passwordResetModel.create({
-        userId: user.id,
-        email: user.email,
-        otp,
-        otpExpiresAt,
+    // Deprecated: Email sending for password resets has been migrated to Supabase Edge Functions.
+    // The frontend should call the 'send-password-reset-email' function directly.
+    return res.status(410).json({ 
+        success: false, 
+        message: "This endpoint has been deprecated. The frontend must invoke the Supabase Edge Function directly."
     });
-
-    console.log(`[OTP EMAIL] Sending password reset email to ${user.email}`);
-
-    // Send OTP email via Brevo
-    let emailLog;
-    try {
-        emailLog = await emailLogModel.create({
-            userId: user.id,
-            recipient: user.email,
-            subject: "Your LeadFlow AI Password Reset Code",
-            status: "pending",
-            provider: "brevo"
-        });
-
-        const emailHtml = buildOtpEmail(user.first_name, otp);
-        const responseData = await sendEmail({
-            to: user.email,
-            subject: "Your LeadFlow AI Password Reset Code",
-            html: emailHtml
-        });
-        
-        await emailLogModel.updateStatus(emailLog.id, "sent", responseData?.id || null, null);
-        console.log(`[OTP EMAIL] Brevo accepted email: ${responseData?.id}`);
-    } catch (err) {
-        if (emailLog) {
-            try {
-                await emailLogModel.updateStatus(emailLog.id, "failed", null, err.message);
-            } catch (updateErr) {
-                console.error(`[OTP EMAIL] Failed to update email log status: ${updateErr.message}`);
-            }
-        }
-        console.error(`[OTP EMAIL ERROR] ${err.message}`);
-
-        // Clean up the OTP record since email was never delivered
-        try {
-            await passwordResetModel.deleteById(otpRecord.id);
-            console.log(`[OTP EMAIL] Cleaned up undelivered OTP record ${otpRecord.id}`);
-        } catch (cleanupErr) {
-            console.error(`[OTP EMAIL] Failed to clean up OTP record: ${cleanupErr.message}`);
-        }
-
-        return res.status(500).json({
-            success: false,
-            message: "Unable to send password reset email. Please try again later."
-        });
-    }
-
-    res.json({ success: true, message: "If that email exists, an OTP has been sent." });
 });
 
 /**

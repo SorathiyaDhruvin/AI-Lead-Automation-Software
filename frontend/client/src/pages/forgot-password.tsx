@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { apiClient } from "@/services/api";
+import { supabase } from "@/services/supabase";
 
 const forgotPasswordSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -32,9 +32,20 @@ export default function ForgotPassword() {
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      const result = await apiClient.post<{ message: string }>("/auth/forgot-password", {
-        email: data.email
-      });
+      const { data: responseData, error: functionError } = await supabase.functions.invoke(
+        'send-password-reset-email',
+        {
+          body: { email: data.email }
+        }
+      );
+
+      if (functionError) {
+        throw new Error(functionError.message || "Failed to call edge function");
+      }
+
+      if (!responseData?.success) {
+        throw new Error(responseData?.message || "Unable to send password reset email.");
+      }
 
       toast({
         title: "Code sent",
