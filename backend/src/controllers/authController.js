@@ -92,7 +92,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
         return res.status(500).json({ 
             success: false, 
-            message: "Unable to send password reset email" 
+            message: error.message || "Unable to send password reset email" 
         });
     }
 });

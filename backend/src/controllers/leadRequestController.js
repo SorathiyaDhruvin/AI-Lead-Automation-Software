@@ -129,40 +129,6 @@ const adminUpdateStatus = asyncHandler(async (req, res) => {
                 message: `Your lead request for "${request.company_name}" has been approved`,
             });
 
-            // Send approval email to the LEAD's email (not the admin)
-            if (emailService.isConfigured()) {
-                const emailLog = await emailLogModel.create({
-                    leadId: lead.id,
-                    userId: request.user_id,
-                    recipient: request.email,
-                    subject: `Your Request Has Been Approved, ${request.contact_name}!`,
-                    status: "pending",
-                });
-
-                emailService.sendEmail({
-                    to: request.email,
-                    subject: `Your Request Has Been Approved, ${request.contact_name}!`,
-                    html: emailService.buildApprovalEmail(request.contact_name)
-                }).then(result => {
-                    emailLogModel.updateStatus(emailLog.id, "sent", result?.id || null, null);
-                    activityModel.create({
-                        leadId: lead.id,
-                        userId: request.user_id,
-                        type: "email_sent",
-                        description: `Approval email sent to ${request.email}`,
-                    });
-                }).catch(err => {
-                    emailLogModel.updateStatus(emailLog.id, "failed", null, err.message);
-                    activityModel.create({
-                        leadId: lead.id,
-                        userId: request.user_id,
-                        type: "email_failed",
-                        description: `Approval email failed: ${err.message}`,
-                    });
-                    console.error("[LeadRequest] Approval email error:", err.message);
-                });
-            }
-
             // Trigger automation for lead_request_approved event
             automationEngine.triggerEvent("lead_request_approved", lead, request.user_id)
                 .catch(err => console.error("[LeadRequest] Automation trigger error:", err.message));
@@ -179,6 +145,72 @@ const adminUpdateStatus = asyncHandler(async (req, res) => {
             type: "request_rejected",
             message: `Your lead request for "${request.company_name}" has been rejected${adminNotes ? `: ${adminNotes}` : ""}`,
         }).catch(err => console.error("[LeadRequest] Notification error:", err.message));
+    }
+
+    // ── UNIFIED EMAIL SENDING LOGIC ──
+    console.log(`[LeadRequest] Lead request status updated: ${request.status} -> ${status}`);
+    
+    if (emailService.isConfigured()) {
+        const leadEmail = request.email;
+        const leadName = request.contact_name;
+        
+        let subject = "";
+        switch (status) {
+            case "pending": subject = "Your Lead Request is Pending - LeadFlow AI"; break;
+            case "in_review": subject = "Your Lead Request is Under Review - LeadFlow AI"; break;
+            case "approved": subject = "Your Lead Request Has Been Approved - LeadFlow AI"; break;
+            case "rejected": subject = "Your Lead Request Has Been Rejected - LeadFlow AI"; break;
+            default: subject = "Lead Request Status Update - LeadFlow AI";
+        }
+        
+        // Attempt to find a lead ID if one exists, for activity logging purposes
+        let leadIdForLog = null;
+        try {
+            const existingLeads = await leadModel.getByUser(request.user_id, { search: leadEmail });
+            const matchingLead = existingLeads.find(l => l.email.toLowerCase() === leadEmail.toLowerCase());
+            if (matchingLead) leadIdForLog = matchingLead.id;
+        } catch(e) {}
+        
+        try {
+            const emailLog = await emailLogModel.create({
+                leadId: leadIdForLog,
+                userId: request.user_id,
+                recipient: leadEmail,
+                subject: subject,
+                status: "pending",
+            });
+
+            // Fire and forget email delivery
+            emailService.sendEmail({
+                to: leadEmail,
+                subject: subject,
+                html: emailService.buildStatusUpdateEmail(leadName, status, adminNotes)
+            }).then(result => {
+                emailLogModel.updateStatus(emailLog.id, "sent", result?.id || null, null);
+                if (leadIdForLog) {
+                    activityModel.create({
+                        leadId: leadIdForLog,
+                        userId: request.user_id,
+                        type: "email_sent",
+                        description: `Status update email (${status}) sent to ${leadEmail}`,
+                    });
+                }
+                console.log(`[LeadRequest] Status update email sent to: ${leadEmail}`);
+            }).catch(err => {
+                emailLogModel.updateStatus(emailLog.id, "failed", null, err.message);
+                if (leadIdForLog) {
+                    activityModel.create({
+                        leadId: leadIdForLog,
+                        userId: request.user_id,
+                        type: "email_failed",
+                        description: `Status update email (${status}) failed: ${err.message}`,
+                    });
+                }
+                console.error(`[LeadRequest] Status update email failed for: ${leadEmail}`);
+            });
+        } catch (error) {
+             console.error(`[LeadRequest] Failed to initiate email log for: ${leadEmail}`, error.message);
+        }
     }
 
     res.json({ success: true, data: mapToCamelCase(updated) });

@@ -5,13 +5,7 @@ let _transporter = null;
 function getTransporter() {
     if (!_transporter) {
         const host = process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com';
-        let port = Number(process.env.BREVO_SMTP_PORT) || 2525; // Render free tier blocks 587 and 25; 2525 is a safe alternative
-        
-        // Render blocks outbound port 587. If we detect Render, auto-correct the port to 2525.
-        if (port === 587 && process.env.RENDER) {
-            console.warn("[EMAIL] Auto-correcting SMTP port from 587 to 2525 (Render outbound restriction bypass)");
-            port = 2525;
-        }
+        const port = Number(process.env.BREVO_SMTP_PORT) || 587;
 
         const user = process.env.BREVO_SMTP_USER;
         const pass = process.env.BREVO_SMTP_PASSWORD;
@@ -25,15 +19,21 @@ function getTransporter() {
         _transporter = nodemailer.createTransport({
             host,
             port,
-            secure: isSecure, // true for 465, false for other ports
+            secure: isSecure, // true for 465, false for 587 (STARTTLS)
             auth: {
                 user,
                 pass,
             },
-            connectionTimeout: 10000, // 10 seconds
-            greetingTimeout: 10000,
-            socketTimeout: 15000,
+            tls: {
+                // Do not fail on invalid certs (some Render environments need this)
+                rejectUnauthorized: false,
+            },
+            connectionTimeout: 15000, // 15 seconds
+            greetingTimeout: 15000,
+            socketTimeout: 20000,
         });
+
+        console.log(`[EMAIL] Transporter created: host=${host}, port=${port}, secure=${isSecure}, user=${user ? 'configured' : 'MISSING'}`);
     }
     return _transporter;
 }
@@ -263,6 +263,50 @@ function buildRejectionEmail(leadName, reason) {
     `;
 }
 
+function buildStatusUpdateEmail(leadName, status, adminNotes) {
+    let statusTitle = "";
+    let statusColor = "";
+    let statusMessage = "";
+
+    switch (status) {
+        case "pending":
+            statusTitle = "Request Pending";
+            statusColor = "#F59E0B"; // Amber
+            statusMessage = "Your lead request is currently pending. We will review it and provide an update soon.";
+            break;
+        case "in_review":
+            statusTitle = "Request Under Review";
+            statusColor = "#3B82F6"; // Blue
+            statusMessage = "Your lead request is currently being reviewed by our team.";
+            break;
+        case "approved":
+            statusTitle = "Request Approved!";
+            statusColor = "#10B981"; // Green
+            statusMessage = "Good news! Your lead request has been approved.";
+            break;
+        case "rejected":
+            statusTitle = "Request Rejected";
+            statusColor = "#EF4444"; // Red
+            statusMessage = "Your lead request has been rejected. Please review the admin notes for additional information.";
+            break;
+        default:
+            statusTitle = "Request Update";
+            statusColor = "#6b7280";
+            statusMessage = "Your lead request status has been updated.";
+    }
+
+    return `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
+      <h2 style="color: ${statusColor}; margin-top: 0;">${statusTitle}</h2>
+      <p>Hi ${leadName},</p>
+      <p>${statusMessage}</p>
+      ${adminNotes ? `<div style="margin-top: 20px; padding: 15px; background-color: #f9fafb; border-left: 4px solid ${statusColor}; border-radius: 4px;"><strong>Admin Notes:</strong><br/>${adminNotes}</div>` : ""}
+      <br/>
+      <p style="color: #6C5CE7; font-weight: bold; margin-bottom: 0;">The LeadFlow Team</p>
+    </div>
+    `;
+}
+
 /**
  * Check if the email service is properly configured.
  */
@@ -278,6 +322,7 @@ module.exports = {
     buildFollowUpEmail,
     buildApprovalEmail,
     buildRejectionEmail,
+    buildStatusUpdateEmail,
     isConfigured,
     checkSmtpConnection
 };
