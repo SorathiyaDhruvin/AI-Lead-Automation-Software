@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ClipboardList,
@@ -15,22 +15,10 @@ import {
   Calendar,
   Send,
   PhoneCall,
-  Video,
-  FileText,
-  Activity,
   User,
-  CheckCircle,
   Star,
-  Clock,
-  StickyNote,
-  TrendingUp,
-  Upload,
   Download,
-  Zap,
-  Target,
-  Brain,
-  Lightbulb,
-  type LucideIcon,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +27,6 @@ import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -55,25 +42,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import type { Lead, Activity as LeadActivity, LeadNote } from "@/types";
+import type { Lead } from "@/types";
 import { leadsService } from "@/services/leads";
-import { LeadDetailsSheet } from "@/components/lead-details-sheet";
 import { LeadDialog } from "@/components/lead-dialog";
+import { CsvImportDialog } from "@/components/csv-import-dialog";
+import { formatDistanceToNow } from "date-fns";
 
 const statusColors: Record<string, string> = {
   new: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
@@ -85,32 +74,6 @@ const statusColors: Record<string, string> = {
   won: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300",
 };
 
-const statusSteps = ["new", "contacted", "qualified", "proposal", "negotiation"];
-
-const activityIcons: Record<string, LucideIcon> = {
-  lead_created: User,
-  status_changed: TrendingUp,
-  automation_triggered: Zap,
-  scored: Target,
-  email_sent: Mail,
-  note_added: FileText,
-  call: PhoneCall,
-  meeting: Video,
-  task: CheckCircle,
-};
-
-const activityColors: Record<string, string> = {
-  lead_created: "text-blue-500 bg-blue-50 dark:bg-blue-900/20",
-  status_changed: "text-purple-500 bg-purple-50 dark:bg-purple-900/20",
-  automation_triggered: "text-indigo-500 bg-indigo-50 dark:bg-indigo-900/20",
-  scored: "text-green-500 bg-green-50 dark:bg-green-900/20",
-  email_sent: "text-sky-500 bg-sky-50 dark:bg-sky-900/20",
-  note_added: "text-amber-500 bg-amber-50 dark:bg-amber-900/20",
-  call: "text-cyan-500 bg-cyan-50 dark:bg-cyan-900/20",
-  meeting: "text-pink-500 bg-pink-50 dark:bg-pink-900/20",
-  task: "text-orange-500 bg-orange-50 dark:bg-orange-900/20",
-};
-
 export default function LeadManagementPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -119,15 +82,12 @@ export default function LeadManagementPage() {
   const [scoreFilter, setScoreFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [detailLead, setDetailLead] = useState<Lead | null>(null);
-  const [newNote, setNewNote] = useState("");
-  const [activeTab, setActiveTab] = useState("overview");
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [emailTargetLead, setEmailTargetLead] = useState<Lead | null>(null);
   const [emailSubject, setEmailSubject] = useState("Following up — LeadFlow");
   const [emailMessage, setEmailMessage] = useState("");
-  const importFileRef = useRef<HTMLInputElement>(null);
 
   const { data: leads, isLoading } = useQuery<Lead[]>({
     queryKey: ["/api/leads", searchQuery, statusFilter, scoreFilter, dateFilter],
@@ -144,45 +104,15 @@ export default function LeadManagementPage() {
     }),
   });
 
-  // Notes for the selected lead
-  const { data: notes = [], isLoading: notesLoading } = useQuery<LeadNote[]>({
-    queryKey: ["/api/leads", detailLead?.id, "notes"],
-    queryFn: () => leadsService.getNotes(detailLead!.id),
-    enabled: !!detailLead && activeTab === "notes",
-  });
-
-  // Activity timeline for the selected lead
-  const { data: activityItems = [], isLoading: activityLoading } = useQuery<LeadActivity[]>({
-    queryKey: ["/api/leads", detailLead?.id, "activity"],
-    queryFn: () => leadsService.getActivity(detailLead!.id),
-    enabled: !!detailLead && activeTab === "activity",
-  });
-
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => leadsService.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({ title: "Lead deleted", description: "The lead has been removed" });
-      setDetailLead(null);
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to delete lead", variant: "destructive" });
-    },
-  });
-
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      return leadsService.update(id, { status });
-    },
-    onSuccess: (data: Lead) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", detailLead?.id, "activity"] });
-      if (detailLead) setDetailLead(data);
-      toast({ title: "Status Updated", description: "Lead status has been changed" });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to update status", variant: "destructive" });
     },
   });
 
@@ -191,9 +121,6 @@ export default function LeadManagementPage() {
       return leadsService.sendEmail(id, { subject, message });
     },
     onSuccess: () => {
-      if (emailTargetLead) {
-        queryClient.invalidateQueries({ queryKey: ["/api/leads", emailTargetLead.id, "activity"] });
-      }
       setIsEmailDialogOpen(false);
       setEmailMessage("");
       toast({ title: "Email Sent", description: `Follow-up sent to ${emailTargetLead?.email}` });
@@ -203,29 +130,10 @@ export default function LeadManagementPage() {
     },
   });
 
-  const addNoteMutation = useMutation({
-    mutationFn: async ({ id, text }: { id: string; text: string }) => {
-      return leadsService.addNote(id, text);
-    },
-    onSuccess: () => {
-      if (detailLead) {
-        queryClient.invalidateQueries({ queryKey: ["/api/leads", detailLead.id, "notes"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/leads", detailLead.id, "activity"] });
-      }
-      setNewNote("");
-      toast({ title: "Note Added", description: "Note has been saved" });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to add note", variant: "destructive" });
-    },
-  });
-
   const scoreMutation = useMutation({
     mutationFn: async (id: string) => leadsService.score(id),
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", detailLead?.id, "activity"] });
-      if (detailLead) setDetailLead(data as Lead);
       toast({ title: "Lead Scored", description: "AI scoring complete" });
     },
     onError: (error: any) => {
@@ -268,8 +176,6 @@ export default function LeadManagementPage() {
 
   const hasActiveFilters = searchQuery || statusFilter !== "all" || scoreFilter !== "all" || dateFilter !== "all";
 
-
-
   const handleExport = async () => {
     try {
       const blob = await leadsService.exportCsv({
@@ -290,42 +196,43 @@ export default function LeadManagementPage() {
     }
   };
 
-
-
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className="p-4 md:p-6 space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Lead Management</h1>
-          <p className="text-muted-foreground">Manage leads, track activities, and close deals</p>
+          <h1 className="text-2xl font-bold text-foreground">Leads</h1>
+          <p className="text-muted-foreground mt-1">Manage, qualify, and track your leads.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExport}
-            data-testid="button-export-csv"
-          >
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setIsImportOpen(true)} data-testid="button-import-csv">
+            <Upload className="h-4 w-4 mr-2" />
+            Import CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExport} data-testid="button-export-csv">
             <Download className="h-4 w-4 mr-2" />
             Export CSV
+          </Button>
+          <Button size="sm" onClick={() => setIsDialogOpen(true)} data-testid="button-create-lead">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Lead
           </Button>
         </div>
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap bg-card border rounded-lg p-3">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by name or email..."
-            className="pl-10"
+            placeholder="Search leads..."
+            className="pl-9 h-9"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             data-testid="input-search-leads"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px]" data-testid="select-status-filter">
+          <SelectTrigger className="w-[140px] h-9" data-testid="select-status-filter">
             <Filter className="h-4 w-4 mr-2" />
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -341,7 +248,7 @@ export default function LeadManagementPage() {
           </SelectContent>
         </Select>
         <Select value={scoreFilter} onValueChange={setScoreFilter}>
-          <SelectTrigger className="w-[150px]" data-testid="select-score-filter">
+          <SelectTrigger className="w-[130px] h-9" data-testid="select-score-filter">
             <Star className="h-4 w-4 mr-2" />
             <SelectValue placeholder="Score" />
           </SelectTrigger>
@@ -353,7 +260,7 @@ export default function LeadManagementPage() {
           </SelectContent>
         </Select>
         <Select value={dateFilter} onValueChange={setDateFilter}>
-          <SelectTrigger className="w-[150px]" data-testid="select-date-filter">
+          <SelectTrigger className="w-[140px] h-9" data-testid="select-date-filter">
             <Calendar className="h-4 w-4 mr-2" />
             <SelectValue placeholder="Date" />
           </SelectTrigger>
@@ -368,120 +275,190 @@ export default function LeadManagementPage() {
           <Button
             variant="ghost"
             size="sm"
+            className="h-9"
             onClick={() => { setSearchQuery(""); setStatusFilter("all"); setScoreFilter("all"); setDateFilter("all"); }}
             data-testid="button-clear-filters"
           >
-            Clear filters
+            Clear
           </Button>
         )}
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-4">
-                <Skeleton className="h-6 w-32 mb-2" />
-                <Skeleton className="h-4 w-48 mb-4" />
-                <Skeleton className="h-8 w-full" />
-              </CardContent>
-            </Card>
+        <div className="space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full" />
           ))}
         </div>
       ) : leads && leads.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {leads.map((lead) => (
-            <Card
-              key={lead.id}
-              className="hover-elevate cursor-pointer"
-              onClick={() => openDetail(lead)}
-              data-testid={`card-lead-${lead.id}`}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User className="h-5 w-5 text-primary" />
+        <>
+          {/* DESKTOP TABLE VIEW */}
+          <div className="hidden md:block rounded-md border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Lead</TableHead>
+                  <TableHead>Company</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>AI Score</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Added</TableHead>
+                  <TableHead className="w-[80px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {leads.map((lead) => (
+                  <TableRow 
+                    key={lead.id} 
+                    className="cursor-pointer"
+                    onClick={() => openDetail(lead)}
+                  >
+                    <TableCell>
+                      <div className="font-medium">{lead.name}</div>
+                      <div className="text-xs text-muted-foreground">{lead.email}</div>
+                    </TableCell>
+                    <TableCell>
+                      {lead.company ? (
+                        <div className="flex items-center text-sm">
+                          <Building className="h-3 w-3 mr-1 text-muted-foreground" />
+                          {lead.company}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={statusColors[lead.status] || "bg-muted"}>{lead.status}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {lead.aiScore !== null ? (
+                        <Badge className={getScoreColor(lead.aiScore)}>Score: {lead.aiScore}</Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Not scored</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm capitalize">{lead.source.replace('_', ' ')}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground" title={new Date(lead.createdAt).toLocaleString()}>
+                        {formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true })}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleQuickAction("call", lead); }}>
+                            <PhoneCall className="h-4 w-4 mr-2" /> Call
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleQuickAction("email", lead); }}>
+                            <Mail className="h-4 w-4 mr-2" /> Email
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedLead(lead); setIsDialogOpen(true); }}>
+                            <Edit className="h-4 w-4 mr-2" /> Edit Lead
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); scoreMutation.mutate(lead.id); }}>
+                            <Sparkles className="h-4 w-4 mr-2" /> Score AI
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(lead.id); }}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* MOBILE CARDS VIEW */}
+          <div className="grid grid-cols-1 gap-4 md:hidden">
+            {leads.map((lead) => (
+              <Card
+                key={lead.id}
+                className="hover-elevate cursor-pointer overflow-hidden"
+                onClick={() => openDetail(lead)}
+              >
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground leading-tight">{lead.name}</h3>
+                        <p className="text-xs text-muted-foreground">{lead.email}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground">{lead.name}</h3>
-                      <p className="text-sm text-muted-foreground">{lead.email}</p>
-                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2 -mt-2">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleQuickAction("call", lead); }}>
+                          <PhoneCall className="h-4 w-4 mr-2" /> Call
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleQuickAction("email", lead); }}>
+                          <Mail className="h-4 w-4 mr-2" /> Send Email
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedLead(lead); setIsDialogOpen(true); }}>
+                          <Edit className="h-4 w-4 mr-2" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); scoreMutation.mutate(lead.id); }}>
+                          <Sparkles className="h-4 w-4 mr-2" /> AI Score
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(lead.id); }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" data-testid={`button-lead-actions-${lead.id}`}>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleQuickAction("call", lead); }}>
-                        <PhoneCall className="h-4 w-4 mr-2" /> Call
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleQuickAction("email", lead); }}>
-                        <Mail className="h-4 w-4 mr-2" /> Send Email
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleQuickAction("meeting", lead); }}>
-                        <Calendar className="h-4 w-4 mr-2" /> Schedule Meeting
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedLead(lead); setIsDialogOpen(true); }}>
-                        <Edit className="h-4 w-4 mr-2" /> Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); scoreMutation.mutate(lead.id); }}>
-                        <Sparkles className="h-4 w-4 mr-2" /> AI Score
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(lead.id); }}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
 
-                <div className="space-y-2 mb-3">
-                  {lead.company && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Building className="h-3 w-3" /> {lead.company}
-                    </div>
-                  )}
-                  {lead.phone && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Phone className="h-3 w-3" /> {lead.phone}
-                    </div>
-                  )}
-                </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {lead.company && (
+                      <div className="flex items-center text-muted-foreground truncate">
+                        <Building className="h-3 w-3 mr-1 flex-shrink-0" /> {lead.company}
+                      </div>
+                    )}
+                    {lead.phone && (
+                      <div className="flex items-center text-muted-foreground truncate">
+                        <Phone className="h-3 w-3 mr-1 flex-shrink-0" /> {lead.phone}
+                      </div>
+                    )}
+                  </div>
 
-                <div className="flex items-center justify-between">
-                  <Badge className={statusColors[lead.status]}>{lead.status}</Badge>
-                  {lead.aiScore !== null && (
-                    <Badge className={getScoreColor(lead.aiScore)}>
-                      Score: {lead.aiScore}
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t">
-                  <Button variant="ghost" size="sm" className="flex-1"
-                    onClick={(e) => { e.stopPropagation(); handleQuickAction("call", lead); }}>
-                    <PhoneCall className="h-3 w-3 mr-1" /> Call
-                  </Button>
-                  <Button variant="ghost" size="sm" className="flex-1"
-                    onClick={(e) => { e.stopPropagation(); handleQuickAction("email", lead); }}>
-                    <Mail className="h-3 w-3 mr-1" /> Email
-                  </Button>
-                  <Button variant="ghost" size="sm" className="flex-1"
-                    onClick={(e) => { e.stopPropagation(); handleQuickAction("meeting", lead); }}>
-                    <Calendar className="h-3 w-3 mr-1" /> Meet
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  <div className="flex items-center flex-wrap gap-2 pt-2 border-t">
+                    <Badge className={statusColors[lead.status]}>{lead.status}</Badge>
+                    {lead.aiScore !== null ? (
+                      <Badge className={getScoreColor(lead.aiScore)}>Score: {lead.aiScore}</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-muted-foreground">Not scored</Badge>
+                    )}
+                    <Badge variant="secondary" className="capitalize text-[10px]">{lead.source}</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
       ) : (
         <Card>
           <CardContent className="py-12 text-center">
@@ -494,6 +471,7 @@ export default function LeadManagementPage() {
         </Card>
       )}
 
+      {/* Reusable Lead Dialog (Create/Edit) */}
       <LeadDialog
         open={isDialogOpen}
         onOpenChange={(open) => {
@@ -503,7 +481,11 @@ export default function LeadManagementPage() {
         lead={selectedLead}
       />
 
-
+      {/* Shared CSV Import Dialog */}
+      <CsvImportDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+      />
 
       {/* Send Email Dialog */}
       <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
