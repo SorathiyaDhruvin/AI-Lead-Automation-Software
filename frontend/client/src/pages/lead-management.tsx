@@ -121,6 +121,8 @@ export default function LeadManagementPage() {
   const activeDetailLead = fetchedLead || (urlLeadId && leads ? leads.find(l => l.id === urlLeadId) : null) || null;
 
   const closeDetail = () => {
+    setUrlLeadId(null);
+    window.history.pushState({}, "", "/lead-management");
     setLocation("/lead-management");
   };
 
@@ -192,6 +194,7 @@ export default function LeadManagementPage() {
   };
 
   const openDetail = (lead: Lead) => {
+    setUrlLeadId(lead.id);
     setLocation(`/lead-management?lead=${lead.id}`);
   };
 
