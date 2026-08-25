@@ -26,6 +26,29 @@ import { notificationsService, type NotificationsResponse } from "@/services/not
 import NotFound from "@/pages/not-found";
 import { Loader2 } from "lucide-react";
 
+import LoginPage from "@/pages/login";
+import RegisterPage from "@/pages/register";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import VerifyOtpPage from "@/pages/verify-otp";
+import ResetPasswordPage from "@/pages/reset-password";
+import AuthCallbackPage from "@/pages/auth-callback";
+import DashboardPage from "@/pages/dashboard";
+import LeadGenerationPage from "@/pages/lead-generation";
+import LeadManagementPage from "@/pages/lead-management";
+import LeadAutomationPage from "@/pages/lead-automation";
+import SegmentsPage from "@/pages/segments";
+import InsightsPage from "@/pages/insights";
+import ProfilePage from "@/pages/profile";
+import SettingsPage from "@/pages/settings";
+import LeadRequestsPage from "@/pages/lead-requests";
+import AdminPage from "@/pages/admin";
+import AdminLeadRequestsPage from "@/pages/admin-lead-requests";
+import AdminUsersPage from "@/pages/admin-users";
+import AdminActivityPage from "@/pages/admin-activity";
+import AdminAutomationsPage from "@/pages/admin-automations";
+import AdminEmailsPage from "@/pages/admin-emails";
+import AdminSettingsPage from "@/pages/admin-settings";
+
 /**
  * Redirects "/" to /dashboard (if authenticated) or /login (if not).
  * Shows a loading spinner while auth state is being resolved.
@@ -87,28 +110,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
   return <>{children}</>;
 }
-import LoginPage from "@/pages/login";
-import RegisterPage from "@/pages/register";
-import ForgotPasswordPage from "@/pages/forgot-password";
-import VerifyOtpPage from "@/pages/verify-otp";
-import ResetPasswordPage from "@/pages/reset-password";
-import AuthCallbackPage from "@/pages/auth-callback";
-import DashboardPage from "@/pages/dashboard";
-import LeadGenerationPage from "@/pages/lead-generation";
-import LeadManagementPage from "@/pages/lead-management";
-import LeadAutomationPage from "@/pages/lead-automation";
-import SegmentsPage from "@/pages/segments";
-import InsightsPage from "@/pages/insights";
-import ProfilePage from "@/pages/profile";
-import SettingsPage from "@/pages/settings";
-import LeadRequestsPage from "@/pages/lead-requests";
-import AdminPage from "@/pages/admin";
-import AdminLeadRequestsPage from "@/pages/admin-lead-requests";
-import AdminUsersPage from "@/pages/admin-users";
-import AdminActivityPage from "@/pages/admin-activity";
-import AdminAutomationsPage from "@/pages/admin-automations";
-import AdminEmailsPage from "@/pages/admin-emails";
-import AdminSettingsPage from "@/pages/admin-settings";
+
 
 function NotificationBell() {
   const [open, setOpen] = useState(false);
