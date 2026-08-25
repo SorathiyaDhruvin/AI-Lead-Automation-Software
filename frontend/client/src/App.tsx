@@ -11,6 +11,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Bell, CheckCheck } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -119,6 +120,13 @@ function NotificationBell() {
   const unreadCount = data?.unreadCount ?? 0;
   const notifs = data?.notifications ?? [];
 
+  const formatTime = (dateString?: string) => {
+    if (!dateString) return "Just now";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "Just now";
+    return formatDistanceToNow(date, { addSuffix: true });
+  };
+
   const typeIcon = (type: string) => {
     if (type === "lead_created") return "🟢";
     if (type === "status_changed") return "🔄";
@@ -173,8 +181,8 @@ function NotificationBell() {
               <span className="text-sm leading-snug">
                 {typeIcon(n.type)} {n.message}
               </span>
-              <span className="text-xs text-muted-foreground">
-                {new Date(n.createdAt).toLocaleString()}
+              <span className="text-xs text-muted-foreground" title={n.createdAt ? new Date(n.createdAt).toLocaleString() : ""}>
+                {formatTime(n.createdAt)}
               </span>
               {!n.isRead && <span className="w-2 h-2 rounded-full bg-primary absolute right-3 top-1/2 -translate-y-1/2" />}
             </DropdownMenuItem>
