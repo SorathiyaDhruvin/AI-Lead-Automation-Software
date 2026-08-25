@@ -82,10 +82,14 @@ export default function AdminLeadRequestsPage() {
   
   const stats = statsData?.leadRequests;
 
-  const { data: requests, isLoading: requestsLoading } = useQuery<LeadRequest[]>({
+  const { data: requests, isLoading: requestsLoading, error: requestsError } = useQuery<LeadRequest[]>({
     queryKey: ["/api/admin/lead-requests"],
     queryFn: () => adminService.getLeadRequests(),
   });
+
+  if (requestsError) {
+    console.error("[AdminLeadRequestsPage] Error loading requests:", requestsError);
+  }
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, status, adminNotes }: { id: string; status: string; adminNotes?: string }) => {
@@ -213,6 +217,16 @@ export default function AdminLeadRequestsPage() {
               {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-16 w-full" />
               ))}
+            </div>
+          ) : requestsError ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+                <AlertCircle className="h-6 w-6 text-destructive" />
+              </div>
+              <h3 className="text-lg font-medium mb-2 text-destructive">Unable to load lead requests</h3>
+              <p className="text-muted-foreground max-w-sm">
+                Please try again or contact support if the problem persists.
+              </p>
             </div>
           ) : requests && requests.length > 0 ? (
             <div className="rounded-md border">

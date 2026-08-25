@@ -86,6 +86,12 @@ const authMiddleware = async (req, res, next) => {
                 req.userId = dbUser.id;
             }
 
+            // Ensure system admin is always admin in DB (bootstrap)
+            if (user.email?.toLowerCase() === "leadflowai94@gmail.com" && dbUser?.role !== "admin") {
+                await userModel.update(dbUser.id, { role: "admin" });
+                dbUser.role = "admin";
+            }
+
             // Trust the database role ALWAYS. Never trust frontend claims.
             req.userRole = dbUser?.role || "user";
             

@@ -98,10 +98,14 @@ export default function LeadRequestsPage() {
     },
   });
 
-  const { data: requests, isLoading } = useQuery<LeadRequest[]>({
+  const { data: requests, isLoading, error: requestsError } = useQuery<LeadRequest[]>({
     queryKey: ["/api/lead-requests"],
     queryFn: () => leadRequestsService.getAll(),
   });
+
+  if (requestsError) {
+    console.error("[LeadRequestsPage] Error loading requests:", requestsError);
+  }
 
   const createMutation = useMutation({
     mutationFn: async (data: Omit<LeadRequestFormData, "numberOfLeads"> & { numberOfLeads?: number }) => leadRequestsService.create(data),
@@ -352,6 +356,18 @@ export default function LeadRequestsPage() {
             </Card>
           ))}
         </div>
+      ) : requestsError ? (
+        <Card className="p-12 border-dashed border-2 bg-destructive/5 border-destructive/20">
+          <div className="flex flex-col items-center justify-center text-center">
+            <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+              <AlertCircle className="h-6 w-6 text-destructive" />
+            </div>
+            <h3 className="text-lg font-medium mb-2 text-destructive">Unable to load lead requests</h3>
+            <p className="text-muted-foreground mb-4 max-w-sm">
+              Please try again or contact support if the problem persists.
+            </p>
+          </div>
+        </Card>
       ) : requests && requests.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {requests.map((request) => {
