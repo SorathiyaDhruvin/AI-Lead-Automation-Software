@@ -11,18 +11,90 @@ const supabase = createClient(
     process.env.SUPABASE_SECRET_KEY || ""
 );
 
-/**
- * POST /api/auth/forgot-password
- * Generates a 6-digit OTP (crypto-safe) and sends it via Resend.
- * If email delivery fails, the OTP row is cleaned up.
- */
 const forgotPassword = asyncHandler(async (req, res) => {
-    // Deprecated: Email sending for password resets has been migrated to Supabase Edge Functions.
-    // The frontend should call the 'send-password-reset-email' function directly.
-    return res.status(410).json({ 
-        success: false, 
-        message: "This endpoint has been deprecated. The frontend must invoke the Supabase Edge Function directly."
+    const { email } = req.body;
+
+    if (!email || typeof email !== "string") {
+        return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 1. Find user by email
+    const { data: user, error: userError } = await supabase
+        .from("users")
+        .select("id, first_name, email")
+        .eq("email", normalizedEmail)
+        .single();
+
+    if (userError || !user) {
+        // Return success to prevent email enumeration
+        return res.json({ success: true, message: "If that email exists, an OTP has been sent." });
+    }
+
+    // 2. Invalidate old active OTPs for this user
+    await passwordResetModel.invalidateAllForUser(normalizedEmail);
+
+    // 3. Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
+    // 4. Save new OTP
+    const otpRecord = await passwordResetModel.create({
+        userId: user.id,
+        email: user.email,
+        otp,
+        otpExpiresAt: expiresAt,
     });
+
+    if (!otpRecord) {
+        console.error("[AUTH] Failed to save OTP in database");
+        return res.status(500).json({ success: false, message: "Internal server error generating OTP" });
+    }
+
+    // 5. Create pending email_logs
+    const emailLog = await emailLogModel.create({
+        userId: user.id,
+        recipient: user.email,
+        subject: "Your LeadFlow AI Password Reset Code",
+        status: "pending",
+        provider: "brevo",
+    });
+
+    // 6. Send email using our backend emailService
+    try {
+        const html = buildOtpEmail(user.first_name, otp);
+        const result = await sendEmail({
+            to: user.email,
+            subject: "Your LeadFlow AI Password Reset Code",
+            html: html,
+        });
+
+        // Update email_logs with success
+        if (emailLog) {
+            await emailLogModel.updateStatus(emailLog.id, "sent", result?.id || null, null);
+        }
+
+        return res.json({
+            success: true,
+            message: "Password reset code sent successfully"
+        });
+    } catch (error) {
+        console.error("[AUTH] Error sending password reset email:", error.message);
+        
+        // Clean up OTP since email failed
+        await passwordResetModel.update(otpRecord.id, { used: true });
+
+        // Update email_logs
+        if (emailLog) {
+            await emailLogModel.updateStatus(emailLog.id, "failed", null, error.message);
+        }
+
+        return res.status(500).json({ 
+            success: false, 
+            message: "Unable to send password reset email" 
+        });
+    }
 });
 
 /**

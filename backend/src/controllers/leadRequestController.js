@@ -153,6 +153,12 @@ const adminUpdateStatus = asyncHandler(async (req, res) => {
                     });
                 }).catch(err => {
                     emailLogModel.updateStatus(emailLog.id, "failed", null, err.message);
+                    activityModel.create({
+                        leadId: lead.id,
+                        userId: request.user_id,
+                        type: "email_failed",
+                        description: `Approval email failed: ${err.message}`,
+                    });
                     console.error("[LeadRequest] Approval email error:", err.message);
                 });
             }
