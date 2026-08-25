@@ -139,30 +139,22 @@ export default function LeadRequestsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Lead Requests</h1>
-          <p className="text-muted-foreground">
-            Submit and track your lead requests
-          </p>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-new-request">
-              <Plus className="h-4 w-4 mr-2" />
-              New Request
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Submit Lead Request</DialogTitle>
-              <DialogDescription>
-                Fill out the form to submit a new lead request for review.
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+    <div className="p-6 space-y-8 max-w-6xl mx-auto pb-24">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Lead Request</h1>
+        <p className="text-muted-foreground mt-1">
+          Request lead-related services or assistance from LeadFlow AI.
+        </p>
+      </div>
+
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="bg-muted/10 border-b pb-4">
+          <CardTitle className="text-lg">New Request</CardTitle>
+          <CardDescription>Fill out the form below to submit your request.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-6">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -331,9 +323,9 @@ export default function LeadRequestsPage() {
                     </FormItem>
                   )}
                 />
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancel
+                <div className="flex justify-end gap-3 pt-4 border-t">
+                  <Button type="button" variant="outline" onClick={() => form.reset()}>
+                    Clear Form
                   </Button>
                   <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-request">
                     {createMutation.isPending ? "Submitting..." : "Submit Request"}
@@ -341,11 +333,12 @@ export default function LeadRequestsPage() {
                 </div>
               </form>
             </Form>
-          </DialogContent>
-        </Dialog>
-      </div>
+        </CardContent>
+      </Card>
 
-      {isLoading ? (
+      <div className="pt-4">
+        <h2 className="text-2xl font-bold text-foreground mb-6">My Requests</h2>
+        {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <Card key={i}>
@@ -367,61 +360,101 @@ export default function LeadRequestsPage() {
             const StatusIcon = statusInfo.icon;
 
             return (
-              <Card key={request.id} className="hover-elevate" data-testid={`card-request-${request.id}`}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-lg">{request.companyName}</CardTitle>
-                    <Badge className={statusInfo.color}>
-                      <StatusIcon className="h-3 w-3 mr-1" />
-                      {statusInfo.label}
-                    </Badge>
-                  </div>
-                  <CardDescription className="flex items-center gap-2">
-                    <User className="h-3 w-3" />
-                    {request.contactName}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {request.description}
-                  </p>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className={priorityInfo.color}>
-                        {priorityInfo.label} Priority
-                      </Badge>
+              <Dialog key={request.id}>
+                <DialogTrigger asChild>
+                  <Card className="hover-elevate cursor-pointer hover:border-primary/50 transition-colors" data-testid={`card-request-${request.id}`}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <CardTitle className="text-lg">{request.companyName}</CardTitle>
+                          <p className="text-xs text-muted-foreground mt-1">ID: #{request.id.slice(0, 8)}</p>
+                        </div>
+                        <Badge className={statusInfo.color}>
+                          <StatusIcon className="h-3 w-3 mr-1" />
+                          {statusInfo.label}
+                        </Badge>
+                      </div>
+                      <CardDescription className="flex items-center gap-2">
+                        <User className="h-3 w-3" />
+                        {request.contactName}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <Badge variant="outline" className={priorityInfo.color}>
+                          {priorityInfo.label}
+                        </Badge>
+                        <span>{formatDate(request.createdAt)}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[600px]">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center justify-between">
+                      Request Details
+                      <Badge className={statusInfo.color}>{statusInfo.label}</Badge>
+                    </DialogTitle>
+                    <DialogDescription>ID: {request.id}</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Type</p>
+                        <p>{request.requestType}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Priority</p>
+                        <Badge variant="outline" className={priorityInfo.color}>{priorityInfo.label}</Badge>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Submitted</p>
+                        <p>{new Date(request.createdAt).toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Last Updated</p>
+                        <p>{new Date(request.updatedAt || request.createdAt).toLocaleString()}</p>
+                      </div>
                     </div>
-                    <span>{formatDate(request.createdAt)}</span>
-                  </div>
-                  {request.adminNotes && (
-                    <div className="pt-2 border-t">
-                      <p className="text-xs text-muted-foreground">
-                        <span className="font-medium">Admin Note:</span> {request.adminNotes}
-                      </p>
+                    
+                    <div className="pt-4 border-t">
+                      <p className="text-sm font-medium text-muted-foreground mb-1">Description</p>
+                      <p className="text-sm whitespace-pre-wrap">{request.description}</p>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+
+                    {request.additionalNotes && (
+                      <div className="pt-2">
+                        <p className="text-sm font-medium text-muted-foreground mb-1">Additional Notes</p>
+                        <p className="text-sm whitespace-pre-wrap">{request.additionalNotes}</p>
+                      </div>
+                    )}
+
+                    {request.adminNotes && (
+                      <div className="pt-4 border-t mt-4 bg-muted/20 p-4 rounded-md border border-primary/20">
+                        <p className="text-sm font-semibold text-primary mb-1">Admin Response / Notes</p>
+                        <p className="text-sm text-foreground">{request.adminNotes}</p>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
             );
           })}
         </div>
       ) : (
-        <Card className="p-12">
+        <Card className="p-12 border-dashed border-2 bg-muted/10">
           <div className="flex flex-col items-center justify-center text-center">
             <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
               <FileText className="h-6 w-6 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-medium mb-2">No Lead Requests Yet</h3>
+            <h3 className="text-lg font-medium mb-2">No Requests History</h3>
             <p className="text-muted-foreground mb-4 max-w-sm">
-              Submit your first lead request to get started. Our team will review and process it.
+              You haven't submitted any lead requests yet. Use the form above to submit your first request.
             </p>
-            <Button onClick={() => setIsDialogOpen(true)} data-testid="button-first-request">
-              <Plus className="h-4 w-4 mr-2" />
-              Submit First Request
-            </Button>
           </div>
         </Card>
       )}
+      </div>
     </div>
   );
 }

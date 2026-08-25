@@ -10,8 +10,7 @@ import { ProtectedRoute } from "@/routes/ProtectedRoute";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Bell, CheckCheck } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { settingsService } from "@/services/settings";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,7 +20,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { notificationsService, type NotificationsResponse } from "@/services/notifications";
 import NotFound from "@/pages/not-found";
 import { Loader2 } from "lucide-react";
 
@@ -108,108 +106,37 @@ import AdminUsersPage from "@/pages/admin-users";
 import AdminActivityPage from "@/pages/admin-activity";
 import AdminAutomationsPage from "@/pages/admin-automations";
 import AdminEmailsPage from "@/pages/admin-emails";
+import AdminSettingsPage from "@/pages/admin-settings";
 
-function NotificationBell() {
-  const [open, setOpen] = useState(false);
 
-  const { data } = useQuery<NotificationsResponse>({
-    queryKey: ["/api/notifications"],
-    queryFn: () => notificationsService.getAll(),
-    refetchInterval: 30000,
-  });
-
-  const markReadMutation = useMutation({
-    mutationFn: (id: string) => notificationsService.markRead(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
-  });
-
-  const markAllReadMutation = useMutation({
-    mutationFn: () => notificationsService.markAllRead(),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
-  });
-
-  const unreadCount = data?.unreadCount ?? 0;
-  const notifs = data?.notifications ?? [];
-
-  const formatTime = (dateString?: string) => {
-    if (!dateString) return "Just now";
-    const safeDateString = dateString.endsWith("Z") ? dateString : `${dateString}Z`;
-    const date = new Date(safeDateString);
-    if (isNaN(date.getTime())) return "Just now";
-    return formatDistanceToNow(date, { addSuffix: true });
-  };
-
-  const typeIcon = (type: string) => {
-    if (type === "lead_created") return "🟢";
-    if (type === "status_changed") return "🔄";
-    if (type === "automation_triggered") return "⚡";
-    if (type === "scored") return "⭐";
-    return "🔔";
-  };
-
-  return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" data-testid="button-notifications">
-          <Bell className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <Badge
-              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs bg-destructive text-destructive-foreground"
-              data-testid="badge-notification-count"
-            >
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </Badge>
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
-        <div className="flex items-center justify-between px-3 py-2">
-          <span className="font-semibold text-sm">Notifications</span>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={(e) => { e.preventDefault(); markAllReadMutation.mutate(); }}
-              data-testid="button-mark-all-read"
-            >
-              <CheckCheck className="h-3 w-3" /> Mark all read
-            </Button>
-          )}
-        </div>
-        <DropdownMenuSeparator />
-        {notifs.length === 0 ? (
-          <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-            No notifications yet
-          </div>
-        ) : (
-          notifs.map((n) => (
-            <DropdownMenuItem
-              key={n.id}
-              className={`flex flex-col items-start gap-0.5 px-3 py-2 cursor-pointer ${n.isRead ? "opacity-60" : "font-medium"}`}
-              onClick={() => { if (!n.isRead) markReadMutation.mutate(n.id); }}
-              data-testid={`notification-item-${n.id}`}
-            >
-              <span className="text-sm leading-snug">
-                {typeIcon(n.type)} {n.message}
-              </span>
-              <span className="text-xs text-muted-foreground" title={n.createdAt ? new Date(n.createdAt).toLocaleString() : ""}>
-                {formatTime(n.createdAt)}
-              </span>
-              {!n.isRead && <span className="w-2 h-2 rounded-full bg-primary absolute right-3 top-1/2 -translate-y-1/2" />}
-            </DropdownMenuItem>
-          ))
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
   };
+
+  const { data: settings } = useQuery({
+    queryKey: ["/api/settings"],
+    queryFn: () => settingsService.get(),
+    staleTime: Infinity, // don't keep refetching needlessly
+  });
+
+  useEffect(() => {
+    if (settings?.theme) {
+      if (settings.theme === "dark") {
+        document.documentElement.classList.add("dark");
+      } else if (settings.theme === "light") {
+        document.documentElement.classList.remove("dark");
+      } else {
+        if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
+      }
+    }
+  }, [settings?.theme]);
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
@@ -219,7 +146,6 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
           <header className="flex items-center justify-between gap-4 p-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex items-center gap-2">
-              <NotificationBell />
               <ThemeToggle />
             </div>
           </header>
@@ -315,6 +241,13 @@ function Router() {
           </AuthenticatedLayout>
         </ProtectedRoute>
       </Route>
+      <Route path="/lead-requests">
+        <ProtectedRoute userOnly={true}>
+          <AuthenticatedLayout>
+            <LeadRequestsPage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      </Route>
       <Route path="/settings">
         <ProtectedRoute>
           <AuthenticatedLayout>
@@ -361,6 +294,13 @@ function Router() {
         <ProtectedRoute adminOnly={true}>
           <AuthenticatedLayout>
             <AdminEmailsPage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/settings">
+        <ProtectedRoute adminOnly={true}>
+          <AuthenticatedLayout>
+            <AdminSettingsPage />
           </AuthenticatedLayout>
         </ProtectedRoute>
       </Route>

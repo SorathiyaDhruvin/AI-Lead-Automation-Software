@@ -54,12 +54,6 @@ import { queryClient } from "@/lib/queryClient";
 const settingsSchema = z.object({
   theme: z.string().optional(),
   timezone: z.string().optional(),
-  emailNotifications: z.boolean().default(true),
-  smsNotifications: z.boolean().default(false),
-  marketingEmails: z.boolean().default(false),
-  leadAlerts: z.boolean().default(true),
-  automationAlerts: z.boolean().default(true),
-  dailyDigest: z.boolean().default(false),
   automationEnabled: z.boolean().default(true),
 });
 
@@ -72,14 +66,8 @@ export default function SettingsPage() {
   const settingsForm = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
-      theme: localStorage.getItem("theme") || "system",
-      timezone: "America/Los_Angeles",
-      emailNotifications: true,
-      smsNotifications: false,
-      marketingEmails: false,
-      leadAlerts: true,
-      automationAlerts: true,
-      dailyDigest: false,
+      theme: "system",
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Los_Angeles",
       automationEnabled: true,
     },
   });
@@ -97,7 +85,8 @@ export default function SettingsPage() {
     if (dbSettings) {
       settingsForm.reset({
         ...dbSettings,
-        theme: dbSettings.theme || localStorage.getItem("theme") || "system",
+        theme: dbSettings.theme || "system",
+        timezone: dbSettings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Los_Angeles",
       });
     }
   }, [dbSettings, settingsForm]);
@@ -119,12 +108,9 @@ export default function SettingsPage() {
     // Apply theme immediately
     if (data.theme === "dark") {
       document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
     } else if (data.theme === "light") {
       document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
     } else {
-      localStorage.setItem("theme", "system");
       if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
         document.documentElement.classList.add("dark");
       } else {
@@ -225,10 +211,9 @@ export default function SettingsPage() {
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl><SelectTrigger><SelectValue placeholder="Select timezone" /></SelectTrigger></FormControl>
                         <SelectContent>
-                          <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
-                          <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
-                          <SelectItem value="Europe/London">London (GMT)</SelectItem>
-                          <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
+                          {Intl.supportedValuesOf('timeZone').map(tz => (
+                            <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -264,64 +249,6 @@ export default function SettingsPage() {
             </Card>
           </motion.div>
 
-          {/* Notifications */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <Card className="border-border/50 shadow-sm overflow-hidden">
-              <CardHeader className="bg-muted/10 border-b pb-4">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Bell className="h-5 w-5 text-primary" /> Notifications
-                </CardTitle>
-                <CardDescription>Choose what updates you want to receive.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-6 space-y-4">
-                <FormField control={settingsForm.control} name="emailNotifications" render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Global Email Notifications</FormLabel>
-                      <div className="text-sm text-muted-foreground">Master switch for all system emails sent to you.</div>
-                    </div>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={settingsForm.control} name="leadAlerts" render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Lead Alerts</FormLabel>
-                      <div className="text-sm text-muted-foreground">Notify me when hot leads are identified or assigned.</div>
-                    </div>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={!settingsForm.watch("emailNotifications")} /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={settingsForm.control} name="automationAlerts" render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Automation Errors</FormLabel>
-                      <div className="text-sm text-muted-foreground">Notify me if a workflow execution fails.</div>
-                    </div>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={!settingsForm.watch("emailNotifications")} /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={settingsForm.control} name="dailyDigest" render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Daily Digest</FormLabel>
-                      <div className="text-sm text-muted-foreground">Receive a daily summary of lead activity.</div>
-                    </div>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={!settingsForm.watch("emailNotifications")} /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={settingsForm.control} name="smsNotifications" render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm opacity-60">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">SMS Notifications <span className="ml-2 text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">Not configured</span></FormLabel>
-                      <div className="text-sm text-muted-foreground">Receive urgent alerts via text messages. (Requires SMS provider integration)</div>
-                    </div>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled /></FormControl>
-                  </FormItem>
-                )} />
-              </CardContent>
-            </Card>
-          </motion.div>
 
           {/* Danger Zone */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>

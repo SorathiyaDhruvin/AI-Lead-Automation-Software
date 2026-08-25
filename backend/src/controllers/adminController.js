@@ -119,7 +119,7 @@ const getActivity = asyncHandler(async (req, res) => {
         id: r.id,
         userId: r.user_id,
         userEmail: r.email,
-        userName: \`\${r.first_name || ''} \${r.last_name || ''}\`.trim(),
+        userName: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
         action: r.action,
         entityType: r.entity_type,
         entityId: r.entity_id,
@@ -173,10 +173,37 @@ const getEmails = asyncHandler(async (req, res) => {
     }))});
 });
 
+const getPlatformSettings = asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(`SELECT key, value FROM platform_settings`);
+    const settings = {};
+    rows.forEach(r => {
+        if (r.key === 'automation_engine_enabled') {
+            settings.automationEngineEnabled = r.value === 'true' || r.value === true;
+        }
+    });
+    res.json({ success: true, data: settings });
+});
+
+const updatePlatformSettings = asyncHandler(async (req, res) => {
+    const { automationEngineEnabled } = req.body;
+    
+    if (automationEngineEnabled !== undefined) {
+        await pool.query(`
+            INSERT INTO platform_settings (key, value, updated_at) 
+            VALUES ('automation_engine_enabled', $1::jsonb, NOW())
+            ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = NOW()
+        `, [JSON.stringify(automationEngineEnabled)]);
+    }
+
+    res.json({ success: true, message: "Platform settings updated successfully" });
+});
+
 module.exports = {
     getPlatformStats,
     getUsers,
     getActivity,
     getAutomations,
-    getEmails
+    getEmails,
+    getPlatformSettings,
+    updatePlatformSettings
 };

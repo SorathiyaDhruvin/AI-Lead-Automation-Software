@@ -15,7 +15,7 @@ const segmentRoutes = require("./routes/segmentRoutes");
 const authRoutes = require("./routes/authRoutes");
 const automationRoutes = require("./routes/automationRoutes");
 const leadRequestRoutes = require("./routes/leadRequestRoutes");
-const notificationRoutes = require("./routes/notificationRoutes");
+
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const insightsRoutes = require("./routes/insightsRoutes");
 const adminRoutes = require("./routes/adminRoutes");
@@ -42,7 +42,7 @@ app.use("/api/segments", segmentRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/automation", automationRoutes);
 app.use("/api/lead-requests", leadRequestRoutes);
-app.use("/api/notifications", notificationRoutes);
+
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/insights", insightsRoutes);
 app.use("/api/admin", adminRoutes);

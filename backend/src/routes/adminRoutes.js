@@ -16,5 +16,7 @@ router.get("/users", adminController.getUsers);
 router.get("/activity", adminController.getActivity);
 router.get("/automations", adminController.getAutomations);
 router.get("/emails", adminController.getEmails);
+router.get("/settings", adminController.getPlatformSettings);
+router.put("/settings", adminController.updatePlatformSettings);
 
 module.exports = router;

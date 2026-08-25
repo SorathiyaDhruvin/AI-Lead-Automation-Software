@@ -40,4 +40,12 @@ export const adminService = {
   async getEmails(): Promise<any[]> {
     return apiClient.get<any[]>("/admin/emails");
   },
+
+  async getPlatformSettings(): Promise<any> {
+    return apiClient.get<any>("/admin/settings");
+  },
+
+  async updatePlatformSettings(data: any): Promise<any> {
+    return apiClient.put<any>("/admin/settings", data);
+  },
 };

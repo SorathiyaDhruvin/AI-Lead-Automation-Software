@@ -1,7 +1,6 @@
 const leadRequestModel = require("../models/leadRequestModel");
 const leadModel = require("../models/leadModel");
 const activityModel = require("../models/activityModel");
-const notificationModel = require("../models/notificationModel");
 const emailService = require("../services/emailService");
 const emailLogModel = require("../models/emailLogModel");
 const automationEngine = require("../services/automationEngine");
@@ -135,12 +134,6 @@ const adminUpdateStatus = asyncHandler(async (req, res) => {
                 });
             }
 
-            // Notification to the request owner
-            await notificationModel.create({
-                userId: request.user_id,
-                type: "request_approved",
-                message: `Your lead request for "${request.company_name}" has been approved`,
-            });
 
             // Trigger automation for lead_request_approved event
             automationEngine.triggerEvent("lead_request_approved", lead, request.user_id)
@@ -151,13 +144,9 @@ const adminUpdateStatus = asyncHandler(async (req, res) => {
         }
     }
 
-    // ── REJECTED: Log activity and optionally notify ──
+    // ── REJECTED: Log activity ──
     if (status === "rejected") {
-        await notificationModel.create({
-            userId: request.user_id,
-            type: "request_rejected",
-            message: `Your lead request for "${request.company_name}" has been rejected${adminNotes ? `: ${adminNotes}` : ""}`,
-        }).catch(err => console.error("[LeadRequest] Notification error:", err.message));
+        console.log(`[LeadRequest] Request for ${request.company_name} rejected.`);
     }
 
     // ── UNIFIED EMAIL SENDING LOGIC ──

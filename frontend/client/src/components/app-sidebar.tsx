@@ -60,7 +60,6 @@ const userLeadFlowAIItems = [
 ];
 
 const userAccountItems = [
-  { title: "Notifications", url: "/notifications", icon: Bell },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -80,7 +79,6 @@ const adminMonitoringItems = [
 ];
 
 const adminSystemItems = [
-  { title: "Notifications", url: "/admin/notifications", icon: Bell },
   { title: "Settings", url: "/admin/settings", icon: Settings },
 ];
 
