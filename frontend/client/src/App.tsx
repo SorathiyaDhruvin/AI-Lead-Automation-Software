@@ -133,7 +133,8 @@ function NotificationBell() {
 
   const formatTime = (dateString?: string) => {
     if (!dateString) return "Just now";
-    const date = new Date(dateString);
+    const safeDateString = dateString.endsWith("Z") ? dateString : `${dateString}Z`;
+    const date = new Date(safeDateString);
     if (isNaN(date.getTime())) return "Just now";
     return formatDistanceToNow(date, { addSuffix: true });
   };
@@ -169,7 +170,7 @@ function NotificationBell() {
               variant="ghost"
               size="sm"
               className="h-7 text-xs gap-1"
-              onClick={() => markAllReadMutation.mutate()}
+              onClick={(e) => { e.preventDefault(); markAllReadMutation.mutate(); }}
               data-testid="button-mark-all-read"
             >
               <CheckCheck className="h-3 w-3" /> Mark all read

@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Building2,
   User,
+  Users,
   Mail,
   Phone,
   Briefcase,
@@ -52,13 +53,14 @@ import { leadRequestsService } from "@/services/leadRequests";
 import type { LeadRequest } from "@/types";
 
 const leadRequestSchema = z.object({
+  requestType: z.string().min(1, "Request type is required"),
   companyName: z.string().min(2, "Company name is required"),
   contactName: z.string().min(2, "Contact name is required"),
   email: z.string().email("Valid email is required"),
   phone: z.string().optional(),
-  industry: z.string().optional(),
-  budget: z.string().optional(),
+  numberOfLeads: z.string().optional(),
   description: z.string().min(10, "Description must be at least 10 characters"),
+  additionalNotes: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]),
 });
 
@@ -84,13 +86,14 @@ export default function LeadRequestsPage() {
   const form = useForm<LeadRequestFormData>({
     resolver: zodResolver(leadRequestSchema),
     defaultValues: {
+      requestType: "",
       companyName: "",
       contactName: "",
       email: "",
       phone: "",
-      industry: "",
-      budget: "",
+      numberOfLeads: "",
       description: "",
+      additionalNotes: "",
       priority: "medium",
     },
   });
@@ -101,7 +104,7 @@ export default function LeadRequestsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: LeadRequestFormData) => leadRequestsService.create(data),
+    mutationFn: async (data: Omit<LeadRequestFormData, "numberOfLeads"> & { numberOfLeads?: number }) => leadRequestsService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lead-requests"] });
       setIsDialogOpen(false);
@@ -121,7 +124,10 @@ export default function LeadRequestsPage() {
   });
 
   const onSubmit = (data: LeadRequestFormData) => {
-    createMutation.mutate(data);
+    createMutation.mutate({
+      ...data,
+      numberOfLeads: data.numberOfLeads ? Number(data.numberOfLeads) : undefined,
+    });
   };
 
   const formatDate = (date: string | Date) => {
@@ -228,30 +234,38 @@ export default function LeadRequestsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="industry"
+                    name="requestType"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Industry (optional)</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input placeholder="Technology" className="pl-9" {...field} data-testid="input-industry" />
-                          </div>
-                        </FormControl>
+                        <FormLabel>Request Type</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-request-type">
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Lead Generation Request">Lead Generation Request</SelectItem>
+                            <SelectItem value="Lead Research Request">Lead Research Request</SelectItem>
+                            <SelectItem value="Lead Automation Help">Lead Automation Help</SelectItem>
+                            <SelectItem value="CRM/Integration Request">CRM/Integration Request</SelectItem>
+                            <SelectItem value="Custom Request">Custom Request</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                   <FormField
                     control={form.control}
-                    name="budget"
+                    name="numberOfLeads"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Budget (optional)</FormLabel>
+                        <FormLabel>Number of Leads (optional)</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input placeholder="$10,000 - $50,000" className="pl-9" {...field} data-testid="input-budget" />
+                            <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input placeholder="e.g. 50" className="pl-9" {...field} data-testid="input-number-of-leads" />
                           </div>
                         </FormControl>
                         <FormMessage />
@@ -293,6 +307,24 @@ export default function LeadRequestsPage() {
                           className="min-h-[100px]"
                           {...field}
                           data-testid="input-description"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="additionalNotes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Additional Notes (optional)</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Any other requirements or details..."
+                          className="min-h-[60px]"
+                          {...field}
+                          data-testid="input-additional-notes"
                         />
                       </FormControl>
                       <FormMessage />

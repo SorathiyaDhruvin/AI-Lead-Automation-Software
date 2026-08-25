@@ -25,13 +25,13 @@ const leadRequestModel = {
         return rows;
     },
 
-    async create({ userId, companyName, contactName, email, phone, industry, budget, description, priority = "medium", status = "pending" }) {
+    async create({ userId, requestType, companyName, contactName, email, phone, numberOfLeads, industry, budget, description, additionalNotes, priority = "medium", status = "pending" }) {
         const id = uuidv4();
         const { rows } = await pool.query(
-            `INSERT INTO lead_requests (id, user_id, company_name, contact_name, email, phone, industry, budget, description, priority, status, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+            `INSERT INTO lead_requests (id, user_id, request_type, company_name, contact_name, email, phone, number_of_leads, industry, budget, description, additional_notes, priority, status, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
              RETURNING *`,
-            [id, userId, companyName, contactName, email, phone, industry, budget, description, priority, status]
+            [id, userId, requestType, companyName, contactName, email, phone, numberOfLeads, industry, budget, description, additionalNotes, priority, status]
         );
         return rows[0];
     },

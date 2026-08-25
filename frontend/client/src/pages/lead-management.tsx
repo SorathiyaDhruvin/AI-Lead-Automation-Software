@@ -268,21 +268,7 @@ export default function LeadManagementPage() {
 
   const hasActiveFilters = searchQuery || statusFilter !== "all" || scoreFilter !== "all" || dateFilter !== "all";
 
-  const importMutation = useMutation({
-    mutationFn: async (file: File) => leadsService.importCsv(file),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      toast({
-        title: `Import complete`,
-        description: `${result.created} lead${result.created !== 1 ? "s" : ""} imported${result.failed > 0 ? `, ${result.failed} failed` : ""}`,
-        variant: result.failed > 0 ? "destructive" : "default",
-      });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Import failed", description: err.message, variant: "destructive" });
-    },
-  });
+
 
   const handleExport = async () => {
     try {
@@ -304,13 +290,7 @@ export default function LeadManagementPage() {
     }
   };
 
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      importMutation.mutate(file);
-      e.target.value = "";
-    }
-  };
+
 
   return (
     <div className="p-6 space-y-6">
@@ -320,24 +300,6 @@ export default function LeadManagementPage() {
           <p className="text-muted-foreground">Manage leads, track activities, and close deals</p>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            ref={importFileRef}
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={handleImportFile}
-            data-testid="input-import-file"
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => importFileRef.current?.click()}
-            disabled={importMutation.isPending}
-            data-testid="button-import-csv"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            {importMutation.isPending ? "Importing…" : "Import CSV"}
-          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -346,10 +308,6 @@ export default function LeadManagementPage() {
           >
             <Download className="h-4 w-4 mr-2" />
             Export CSV
-          </Button>
-          <Button onClick={() => setIsDialogOpen(true)} data-testid="button-add-lead">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Lead
           </Button>
         </div>
       </div>
@@ -530,13 +488,8 @@ export default function LeadManagementPage() {
             <ClipboardList className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-30" />
             <h3 className="text-lg font-medium mb-1">No leads found</h3>
             <p className="text-muted-foreground mb-4">
-              {hasActiveFilters ? "Try adjusting your filters" : "Add your first lead to get started"}
+              {hasActiveFilters ? "Try adjusting your filters" : "Go to Lead Generation to add your first lead"}
             </p>
-            {!hasActiveFilters && (
-              <Button onClick={() => setIsDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" /> Add Lead
-              </Button>
-            )}
           </CardContent>
         </Card>
       )}

@@ -32,7 +32,7 @@ const generationSources = [
     description: "Import leads from email marketing campaigns and newsletters",
     icon: Mail,
     color: "#6C5CE7",
-    status: "active",
+    status: "coming_soon",
   },
   {
     id: "sms",
@@ -40,7 +40,7 @@ const generationSources = [
     description: "Generate leads through SMS marketing campaigns and text responses",
     icon: Smartphone,
     color: "#00D68F",
-    status: "ready",
+    status: "coming_soon",
   },
   {
     id: "whatsapp",
@@ -48,7 +48,7 @@ const generationSources = [
     description: "Capture leads from WhatsApp Business conversations and broadcasts",
     icon: MessageSquare,
     color: "#25D366",
-    status: "ready",
+    status: "coming_soon",
   },
   {
     id: "referral",
@@ -64,7 +64,7 @@ const generationSources = [
     description: "Bulk import leads from spreadsheets and external sources",
     icon: FileSpreadsheet,
     color: "#FF6B6B",
-    status: "ready",
+    status: "active",
   },
 ];
 
@@ -142,7 +142,7 @@ export default function LeadGenerationPage() {
                     variant={source.status === "active" ? "default" : "secondary"}
                     className="text-xs"
                   >
-                    {source.status === "active" ? "Active" : "Ready"}
+                    {source.status === "active" ? "Active" : source.status === "coming_soon" ? "Coming Soon" : "Ready"}
                   </Badge>
                 </div>
                 <CardDescription className="mt-1">{source.description}</CardDescription>
@@ -151,10 +151,10 @@ export default function LeadGenerationPage() {
             <CardContent>
               <div className="flex items-center justify-between">
                 <div className="text-sm text-muted-foreground">
-                  {source.status === "active" ? "Generating leads" : "Click to configure"}
+                  {source.status === "active" ? "Generating leads" : source.status === "coming_soon" ? "Not available yet" : "Click to configure"}
                 </div>
-                <Button variant="outline" size="sm" data-testid={`button-configure-${source.id}`}>
-                  {source.status === "active" ? "Configure" : "Set Up"}
+                <Button variant="outline" size="sm" disabled={source.status === "coming_soon"} data-testid={`button-configure-${source.id}`}>
+                  {source.status === "active" ? "Configure" : source.status === "coming_soon" ? "Coming Soon" : "Set Up"}
                 </Button>
               </div>
             </CardContent>
@@ -162,26 +162,7 @@ export default function LeadGenerationPage() {
         ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Link2 className="h-5 w-5 text-primary" />
-            Quick Lead Capture
-          </CardTitle>
-          <CardDescription>Manually add a new lead to your pipeline</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-3 flex-wrap">
-            <Input placeholder="Lead name" className="max-w-[200px]" data-testid="input-quick-name" />
-            <Input placeholder="Email address" type="email" className="max-w-[250px]" data-testid="input-quick-email" />
-            <Input placeholder="Company (optional)" className="max-w-[200px]" data-testid="input-quick-company" />
-            <Button data-testid="button-quick-add">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Lead
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+
 
       <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
         <DialogContent className="sm:max-w-[500px]">

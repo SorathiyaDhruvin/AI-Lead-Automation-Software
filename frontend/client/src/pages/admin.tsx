@@ -101,22 +101,21 @@ export default function AdminPage() {
       
       <div className="grid gap-4 md:grid-cols-2">
          <Card>
-            <CardHeader>
-                <CardTitle>System Health</CardTitle>
-                <CardDescription>Platform components status</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <div>
+                  <CardTitle>Lead Pipeline</CardTitle>
+                  <CardDescription>Platform-wide lead generation</CardDescription>
+                </div>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 mt-2">
                 <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">API Server</span>
-                    <span className="text-sm text-green-500 font-medium flex items-center"><TrendingUp className="w-4 h-4 mr-1"/> Online</span>
+                    <span className="text-sm font-medium">Total Leads</span>
+                    <span className="text-sm font-bold">{stats?.leads.total.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Database</span>
-                    <span className="text-sm text-green-500 font-medium flex items-center"><TrendingUp className="w-4 h-4 mr-1"/> Online</span>
-                </div>
-                <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Email Provider</span>
-                    <span className="text-sm text-green-500 font-medium flex items-center"><TrendingUp className="w-4 h-4 mr-1"/> Online</span>
+                    <span className="text-sm font-medium">Generated Today</span>
+                    <span className="text-sm font-bold text-green-500">+{stats?.leads.today.toLocaleString()}</span>
                 </div>
             </CardContent>
          </Card>

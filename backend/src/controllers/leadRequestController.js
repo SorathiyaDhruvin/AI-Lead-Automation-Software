@@ -11,8 +11,18 @@ const mapToCamelCase = (row) => {
     if (!row) return null;
     return {
         ...row,
+        requestType: row.request_type,
         companyName: row.company_name,
         contactName: row.contact_name,
+        email: row.email,
+        phone: row.phone,
+        numberOfLeads: row.number_of_leads,
+        industry: row.industry,
+        budget: row.budget,
+        description: row.description,
+        additionalNotes: row.additional_notes,
+        priority: row.priority,
+        status: row.status,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         adminNotes: row.admin_notes,
@@ -27,7 +37,7 @@ const getRequests = asyncHandler(async (req, res) => {
 });
 
 const createRequest = asyncHandler(async (req, res) => {
-    const { companyName, contactName, email, phone, industry, budget, description, priority } = req.body;
+    const { requestType, companyName, contactName, email, phone, numberOfLeads, industry, budget, description, additionalNotes, priority } = req.body;
     
     if (!companyName || !contactName || !email || !description) {
         return res.status(400).json({ success: false, message: "Missing required fields" });
@@ -35,13 +45,16 @@ const createRequest = asyncHandler(async (req, res) => {
 
     const request = await leadRequestModel.create({
         userId: req.userId,
+        requestType,
         companyName,
         contactName,
         email,
         phone,
+        numberOfLeads,
         industry,
         budget,
         description,
+        additionalNotes,
         priority,
     });
 

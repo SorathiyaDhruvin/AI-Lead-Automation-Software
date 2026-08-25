@@ -13,6 +13,7 @@ import {
   Shield,
   ChevronUp,
   UserCircle,
+  Bell,
 } from "lucide-react";
 import {
   Sidebar,
@@ -43,12 +44,23 @@ const userOverviewItems = [
 const userLeadItems = [
   { title: "Lead Generation", url: "/lead-generation", icon: Magnet },
   { title: "Lead Management", url: "/lead-management", icon: ClipboardList },
+];
+
+const userAutomationItems = [
   { title: "Lead Automation", url: "/lead-automation", icon: Zap },
 ];
 
-const userToolItems = [
+const userInsightsItems = [
   { title: "Segments", url: "/segments", icon: Target },
   { title: "AI Insights", url: "/insights", icon: Sparkles },
+];
+
+const userLeadFlowAIItems = [
+  { title: "Lead Request", url: "/lead-requests", icon: FileText },
+];
+
+const userAccountItems = [
+  { title: "Notifications", url: "/notifications", icon: Bell },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -65,6 +77,11 @@ const adminMonitoringItems = [
   { title: "Activity Logs", url: "/admin/activity", icon: ClipboardList },
   { title: "Automations", url: "/admin/automations", icon: Zap },
   { title: "Emails", url: "/admin/emails", icon: Magnet }, // Using magnet as placeholder, maybe Mail?
+];
+
+const adminSystemItems = [
+  { title: "Notifications", url: "/admin/notifications", icon: Bell },
+  { title: "Settings", url: "/admin/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
@@ -130,12 +147,16 @@ export function AppSidebar() {
             {renderGroup("Overview", adminOverviewItems)}
             {renderGroup("Management", adminManagementItems)}
             {renderGroup("Monitoring", adminMonitoringItems)}
+            {renderGroup("System", adminSystemItems)}
           </>
         ) : (
           <>
             {renderGroup("Overview", userOverviewItems)}
             {renderGroup("Leads", userLeadItems)}
-            {renderGroup("Tools", userToolItems)}
+            {renderGroup("Automation", userAutomationItems)}
+            {renderGroup("Insights", userInsightsItems)}
+            {renderGroup("LeadFlow AI", userLeadFlowAIItems)}
+            {renderGroup("Account", userAccountItems)}
           </>
         )}
       </SidebarContent>

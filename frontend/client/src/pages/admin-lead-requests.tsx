@@ -219,6 +219,7 @@ export default function AdminLeadRequestsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Type</TableHead>
                     <TableHead>Company</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Priority</TableHead>
@@ -235,6 +236,9 @@ export default function AdminLeadRequestsPage() {
 
                     return (
                       <TableRow key={request.id} data-testid={`row-request-${request.id}`}>
+                        <TableCell>
+                          <span className="font-medium">{request.requestType || "N/A"}</span>
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -330,16 +334,16 @@ export default function AdminLeadRequestsPage() {
                   </div>
                   <p className="font-medium">{selectedRequest.phone || "N/A"}</p>
                 </div>
-                {selectedRequest.industry && (
+                {selectedRequest.requestType && (
                   <div className="space-y-1">
-                    <div className="text-sm text-muted-foreground">Industry</div>
-                    <p className="font-medium">{selectedRequest.industry}</p>
+                    <div className="text-sm text-muted-foreground">Request Type</div>
+                    <p className="font-medium">{selectedRequest.requestType}</p>
                   </div>
                 )}
-                {selectedRequest.budget && (
+                {selectedRequest.numberOfLeads && (
                   <div className="space-y-1">
-                    <div className="text-sm text-muted-foreground">Budget</div>
-                    <p className="font-medium">{selectedRequest.budget}</p>
+                    <div className="text-sm text-muted-foreground">Number of Leads</div>
+                    <p className="font-medium">{selectedRequest.numberOfLeads}</p>
                   </div>
                 )}
               </div>
@@ -351,6 +355,16 @@ export default function AdminLeadRequestsPage() {
                 </div>
                 <p className="text-sm bg-muted/50 p-3 rounded-md">{selectedRequest.description}</p>
               </div>
+
+              {selectedRequest.additionalNotes && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                    Additional Notes
+                  </div>
+                  <p className="text-sm bg-muted/50 p-3 rounded-md">{selectedRequest.additionalNotes}</p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Update Status</label>

@@ -93,8 +93,9 @@ export interface LeadRequest {
   contactName: string;
   email: string;
   phone: string | null;
-  industry: string | null;
-  budget: string | null;
+  requestType: string | null;
+  numberOfLeads: number | null;
+  additionalNotes: string | null;
   description: string;
   priority: string;
   status: string;
