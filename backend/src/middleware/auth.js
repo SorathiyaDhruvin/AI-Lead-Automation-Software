@@ -44,15 +44,7 @@ const authMiddleware = async (req, res, next) => {
         req.userId = user.id;
         req.userEmail = user.email;
         
-        // Strictly enforce admin role for the specified email
-        if (user.email?.toLowerCase() === "sorathiyadhruvin2005@gmail.com") {
-            req.userRole = "admin";
-        } else {
-            req.userRole = user.user_metadata?.role === "admin" ? "user" : (user.user_metadata?.role || "user");
-            // Do not trust frontend admin claims for other users
-        }
-        
-        // Ensure user exists in our local PostgreSQL database
+        // Find or create user in our local PostgreSQL database
         try {
             const userModel = require("../models/userModel");
             let dbUser = await userModel.getById(user.id);
@@ -67,18 +59,23 @@ const authMiddleware = async (req, res, next) => {
                 const firstName = user.user_metadata?.first_name || nameParts[0] || "User";
                 const lastName = user.user_metadata?.last_name || nameParts.slice(1).join(" ") || "";
                 
+                // ONLY leadflowai94@gmail.com is hardcoded to admin on creation
+                const isSystemAdmin = user.email?.toLowerCase() === "leadflowai94@gmail.com";
+                const initialRole = isSystemAdmin ? "admin" : "user";
+                
                 try {
-                    await userModel.create({
+                    dbUser = await userModel.create({
                         id: user.id,
                         email: user.email,
                         first_name: firstName,
                         last_name: lastName,
-                        role: req.userRole
+                        role: initialRole
                     });
-                    console.log(`[Auth Sync] Created user record for ID: ${user.id}, Email: ${user.email}`);
+                    console.log(`[Auth Sync] Created user record for ID: ${user.id}, Email: ${user.email} with Role: ${initialRole}`);
                 } catch (insertErr) {
                     if (insertErr.code === '23505') {
                         console.log(`[Auth Sync] User already exists by email (race condition): ${user.email}`);
+                        dbUser = await userModel.getByEmail(user.email);
                     } else {
                         throw insertErr;
                     }
@@ -88,8 +85,14 @@ const authMiddleware = async (req, res, next) => {
                 // Overwrite req.userId to point to the actual database ID to maintain relations
                 req.userId = dbUser.id;
             }
+
+            // Trust the database role ALWAYS. Never trust frontend claims.
+            req.userRole = dbUser?.role || "user";
+            
         } catch (syncError) {
             console.error("[Auth Sync] Failed to synchronize user profile:", syncError.message);
+            // Fallback for extreme cases (if DB fails)
+            req.userRole = user.email?.toLowerCase() === "leadflowai94@gmail.com" ? "admin" : "user";
         }
         
         next();

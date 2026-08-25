@@ -30,14 +30,19 @@ import { Loader2 } from "lucide-react";
  * Shows a loading spinner while auth state is being resolved.
  */
 function RootRedirect() {
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
     if (!loading) {
-      setLocation(user ? "/dashboard" : "/login", { replace: true });
+      if (!user) {
+        setLocation("/login", { replace: true });
+      } else {
+        const isAdmin = userProfile?.role === "admin";
+        setLocation(isAdmin ? "/admin" : "/dashboard", { replace: true });
+      }
     }
-  }, [user, loading, setLocation]);
+  }, [user, userProfile, loading, setLocation]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -51,17 +56,18 @@ function RootRedirect() {
 
 /**
  * Wraps public routes (login, register, etc.).
- * If user is already authenticated, redirects to /dashboard.
+ * If user is already authenticated, redirects to /dashboard or /admin.
  */
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
     if (!loading && user) {
-      setLocation("/dashboard", { replace: true });
+      const isAdmin = userProfile?.role === "admin";
+      setLocation(isAdmin ? "/admin" : "/dashboard", { replace: true });
     }
-  }, [user, loading, setLocation]);
+  }, [user, userProfile, loading, setLocation]);
 
   if (loading) {
     return (
@@ -97,6 +103,11 @@ import ProfilePage from "@/pages/profile";
 import SettingsPage from "@/pages/settings";
 import LeadRequestsPage from "@/pages/lead-requests";
 import AdminPage from "@/pages/admin";
+import AdminLeadRequestsPage from "@/pages/admin-lead-requests";
+import AdminUsersPage from "@/pages/admin-users";
+import AdminActivityPage from "@/pages/admin-activity";
+import AdminAutomationsPage from "@/pages/admin-automations";
+import AdminEmailsPage from "@/pages/admin-emails";
 
 function NotificationBell() {
   const [open, setOpen] = useState(false);
@@ -241,56 +252,56 @@ function Router() {
       </Route>
       <Route path="/auth-callback" component={AuthCallbackPage} />
       <Route path="/dashboard">
-        <ProtectedRoute>
+        <ProtectedRoute userOnly={true}>
           <AuthenticatedLayout>
             <DashboardPage />
           </AuthenticatedLayout>
         </ProtectedRoute>
       </Route>
       <Route path="/leads">
-        <ProtectedRoute>
+        <ProtectedRoute userOnly={true}>
           <AuthenticatedLayout>
             <LeadsPage />
           </AuthenticatedLayout>
         </ProtectedRoute>
       </Route>
       <Route path="/leads/:id">
-        <ProtectedRoute>
+        <ProtectedRoute userOnly={true}>
           <AuthenticatedLayout>
             <LeadsPage />
           </AuthenticatedLayout>
         </ProtectedRoute>
       </Route>
       <Route path="/lead-generation">
-        <ProtectedRoute>
+        <ProtectedRoute userOnly={true}>
           <AuthenticatedLayout>
             <LeadGenerationPage />
           </AuthenticatedLayout>
         </ProtectedRoute>
       </Route>
       <Route path="/lead-management">
-        <ProtectedRoute>
+        <ProtectedRoute userOnly={true}>
           <AuthenticatedLayout>
             <LeadManagementPage />
           </AuthenticatedLayout>
         </ProtectedRoute>
       </Route>
       <Route path="/lead-automation">
-        <ProtectedRoute>
+        <ProtectedRoute userOnly={true}>
           <AuthenticatedLayout>
             <LeadAutomationPage />
           </AuthenticatedLayout>
         </ProtectedRoute>
       </Route>
       <Route path="/segments">
-        <ProtectedRoute>
+        <ProtectedRoute userOnly={true}>
           <AuthenticatedLayout>
             <SegmentsPage />
           </AuthenticatedLayout>
         </ProtectedRoute>
       </Route>
       <Route path="/insights">
-        <ProtectedRoute>
+        <ProtectedRoute userOnly={true}>
           <AuthenticatedLayout>
             <InsightsPage />
           </AuthenticatedLayout>
@@ -310,17 +321,45 @@ function Router() {
           </AuthenticatedLayout>
         </ProtectedRoute>
       </Route>
-      <Route path="/lead-requests">
-        <ProtectedRoute>
-          <AuthenticatedLayout>
-            <LeadRequestsPage />
-          </AuthenticatedLayout>
-        </ProtectedRoute>
-      </Route>
       <Route path="/admin">
         <ProtectedRoute adminOnly={true}>
           <AuthenticatedLayout>
             <AdminPage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/users">
+        <ProtectedRoute adminOnly={true}>
+          <AuthenticatedLayout>
+            <AdminUsersPage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/lead-requests">
+        <ProtectedRoute adminOnly={true}>
+          <AuthenticatedLayout>
+            <AdminLeadRequestsPage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/activity">
+        <ProtectedRoute adminOnly={true}>
+          <AuthenticatedLayout>
+            <AdminActivityPage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/automations">
+        <ProtectedRoute adminOnly={true}>
+          <AuthenticatedLayout>
+            <AdminAutomationsPage />
+          </AuthenticatedLayout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/emails">
+        <ProtectedRoute adminOnly={true}>
+          <AuthenticatedLayout>
+            <AdminEmailsPage />
           </AuthenticatedLayout>
         </ProtectedRoute>
       </Route>

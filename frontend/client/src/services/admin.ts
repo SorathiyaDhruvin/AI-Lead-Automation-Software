@@ -1,6 +1,14 @@
 import { apiClient } from "./api";
 import type { LeadRequest } from "@/types";
 
+export interface AdminPlatformStats {
+  users: { total: number; active: number };
+  leads: { total: number; today: number };
+  automations: { totalWorkflows: number; executions: number; success: number; failed: number };
+  emails: { total: number; delivered: number; failed: number };
+  leadRequests: { total: number; pending: number; approved: number; rejected: number };
+}
+
 export const adminService = {
   async getLeadRequests(): Promise<LeadRequest[]> {
     return apiClient.get<LeadRequest[]>("/admin/lead-requests");
@@ -13,13 +21,23 @@ export const adminService = {
     return apiClient.patch<LeadRequest>(`/admin/lead-requests/${id}`, data);
   },
 
-  async getStats(): Promise<{
-    total: number;
-    pending: number;
-    approved: number;
-    rejected: number;
-    inReview: number;
-  }> {
-    return apiClient.get("/admin/stats");
+  async getPlatformStats(): Promise<AdminPlatformStats> {
+    return apiClient.get<AdminPlatformStats>("/admin/stats");
+  },
+
+  async getUsers(): Promise<any[]> {
+    return apiClient.get<any[]>("/admin/users");
+  },
+
+  async getActivity(): Promise<any[]> {
+    return apiClient.get<any[]>("/admin/activity");
+  },
+
+  async getAutomations(): Promise<any[]> {
+    return apiClient.get<any[]>("/admin/automations");
+  },
+
+  async getEmails(): Promise<any[]> {
+    return apiClient.get<any[]>("/admin/emails");
   },
 };

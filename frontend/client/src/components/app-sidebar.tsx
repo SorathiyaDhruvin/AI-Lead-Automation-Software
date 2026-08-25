@@ -36,30 +36,42 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 
-const mainMenuItems = [
+const userOverviewItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Lead Requests", url: "/lead-requests", icon: FileText },
 ];
 
-const leadMenuItems = [
+const userLeadItems = [
   { title: "Lead Generation", url: "/lead-generation", icon: Magnet },
   { title: "Lead Management", url: "/lead-management", icon: ClipboardList },
   { title: "Lead Automation", url: "/lead-automation", icon: Zap },
 ];
 
-const toolsMenuItems = [
+const userToolItems = [
   { title: "Segments", url: "/segments", icon: Target },
   { title: "AI Insights", url: "/insights", icon: Sparkles },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
-const adminMenuItems = [
-  { title: "Admin Panel", url: "/admin", icon: Shield },
+const adminOverviewItems = [
+  { title: "Admin Dashboard", url: "/admin", icon: Shield },
+];
+
+const adminManagementItems = [
+  { title: "Users", url: "/admin/users", icon: Users },
+  { title: "Lead Requests", url: "/admin/lead-requests", icon: FileText },
+];
+
+const adminMonitoringItems = [
+  { title: "Activity Logs", url: "/admin/activity", icon: ClipboardList },
+  { title: "Automations", url: "/admin/automations", icon: Zap },
+  { title: "Emails", url: "/admin/emails", icon: Magnet }, // Using magnet as placeholder, maybe Mail?
 ];
 
 export function AppSidebar() {
   const [location, setLocation] = useLocation();
   const { user, userProfile, signOut } = useAuth();
+  
+  const isAdmin = userProfile?.role === "admin";
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const f = firstName?.[0] || "";
@@ -75,6 +87,30 @@ export function AppSidebar() {
     setLocation("/login");
   };
 
+  const renderGroup = (label: string, items: any[]) => (
+    <SidebarGroup>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => (
+            <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton
+                asChild
+                isActive={location === item.url}
+                data-testid={`link-${item.title.toLowerCase().replace(/ /g, "-")}`}
+              >
+                <Link href={item.url}>
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.title}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
@@ -84,99 +120,23 @@ export function AppSidebar() {
           </div>
           <div className="flex flex-col">
             <span className="font-semibold text-foreground">LeadFlow AI</span>
-            <span className="text-xs text-muted-foreground">Lead Automation</span>
+            <span className="text-xs text-muted-foreground">{isAdmin ? "Platform Admin" : "Lead Automation"}</span>
           </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Overview</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {mainMenuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === item.url}
-                    data-testid={`link-${item.title.toLowerCase().replace(/ /g, "-")}`}
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Leads</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {leadMenuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === item.url}
-                    data-testid={`link-${item.title.toLowerCase().replace(/ /g, "-")}`}
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Tools</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {toolsMenuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === item.url}
-                    data-testid={`link-${item.title.toLowerCase().replace(/ /g, "-")}`}
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {(user?.role === "admin" || userProfile?.role === "admin" || user?.email?.toLowerCase() === "sorathiyadhruvin2005@gmail.com" || userProfile?.email?.toLowerCase() === "sorathiyadhruvin2005@gmail.com") && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Administration</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {adminMenuItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={location === item.url}
-                      data-testid={`link-${item.title.toLowerCase().replace(/ /g, "-")}`}
-                    >
-                      <Link href={item.url}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+        {isAdmin ? (
+          <>
+            {renderGroup("Overview", adminOverviewItems)}
+            {renderGroup("Management", adminManagementItems)}
+            {renderGroup("Monitoring", adminMonitoringItems)}
+          </>
+        ) : (
+          <>
+            {renderGroup("Overview", userOverviewItems)}
+            {renderGroup("Leads", userLeadItems)}
+            {renderGroup("Tools", userToolItems)}
+          </>
         )}
       </SidebarContent>
 
