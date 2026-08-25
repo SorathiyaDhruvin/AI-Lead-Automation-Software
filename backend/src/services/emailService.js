@@ -5,7 +5,14 @@ let _transporter = null;
 function getTransporter() {
     if (!_transporter) {
         const host = process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com';
-        const port = Number(process.env.BREVO_SMTP_PORT) || 587;
+        let port = Number(process.env.BREVO_SMTP_PORT) || 587;
+        
+        // Render free tier blocks outbound port 587 and 25. 
+        // Auto-correct to 2525 which is the alternative supported by Brevo and allowed by Render.
+        if (port === 587 && process.env.RENDER) {
+            console.warn("[EMAIL] Auto-correcting SMTP port from 587 to 2525 (Render outbound restriction bypass)");
+            port = 2525;
+        }
 
         const user = process.env.BREVO_SMTP_USER;
         const pass = process.env.BREVO_SMTP_PASSWORD;
