@@ -94,7 +94,6 @@ import VerifyOtpPage from "@/pages/verify-otp";
 import ResetPasswordPage from "@/pages/reset-password";
 import AuthCallbackPage from "@/pages/auth-callback";
 import DashboardPage from "@/pages/dashboard";
-import LeadsPage from "@/pages/leads";
 import LeadGenerationPage from "@/pages/lead-generation";
 import LeadManagementPage from "@/pages/lead-management";
 import LeadAutomationPage from "@/pages/lead-automation";
@@ -256,6 +255,14 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+function RedirectTo({ to }: { to: string }) {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    setLocation(to, { replace: true });
+  }, [setLocation, to]);
+  return null;
+}
+
 function Router() {
   return (
     <Switch>
@@ -286,18 +293,10 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/leads">
-        <ProtectedRoute userOnly={true}>
-          <AuthenticatedLayout>
-            <LeadsPage />
-          </AuthenticatedLayout>
-        </ProtectedRoute>
+        <RedirectTo to="/lead-management" />
       </Route>
       <Route path="/leads/:id">
-        <ProtectedRoute userOnly={true}>
-          <AuthenticatedLayout>
-            <LeadsPage />
-          </AuthenticatedLayout>
-        </ProtectedRoute>
+        {(params) => <RedirectTo to={`/lead-management?lead=${params.id}`} />}
       </Route>
       <Route path="/lead-generation">
         <ProtectedRoute userOnly={true}>

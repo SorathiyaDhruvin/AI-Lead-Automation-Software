@@ -58,7 +58,7 @@ export function RecentLeads({ leads, isLoading }: RecentLeadsProps) {
   return (
     <div className="space-y-4">
       {leads.map((lead) => (
-        <Link key={lead.id} href={`/leads/${lead.id}`}>
+        <Link key={lead.id} href={`/lead-management?lead=${lead.id}`}>
           <div
             className="flex items-center gap-4 p-3 rounded-md hover-elevate cursor-pointer"
             data-testid={`lead-item-${lead.id}`}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ClipboardList,
@@ -11,7 +11,6 @@ import {
   Mail,
   Phone,
   Building,
-  Plus,
   Calendar,
   Send,
   PhoneCall,
@@ -62,6 +61,7 @@ import type { Lead } from "@/types";
 import { leadsService } from "@/services/leads";
 import { LeadDialog } from "@/components/lead-dialog";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
+import { LeadDetailsSheet } from "@/components/lead-details-sheet";
 import { formatDistanceToNow } from "date-fns";
 
 const statusColors: Record<string, string> = {
@@ -76,18 +76,26 @@ const statusColors: Record<string, string> = {
 
 export default function LeadManagementPage() {
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
+  const [locationPath, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [scoreFilter, setScoreFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedLeadForEdit, setSelectedLeadForEdit] = useState<Lead | null>(null);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [emailTargetLead, setEmailTargetLead] = useState<Lead | null>(null);
   const [emailSubject, setEmailSubject] = useState("Following up — LeadFlow");
   const [emailMessage, setEmailMessage] = useState("");
+  
+  const [urlLeadId, setUrlLeadId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const leadId = params.get("lead");
+    setUrlLeadId(leadId);
+  }, [locationPath, window.location.search]);
 
   const { data: leads, isLoading } = useQuery<Lead[]>({
     queryKey: ["/api/leads", searchQuery, statusFilter, scoreFilter, dateFilter],
@@ -104,12 +112,25 @@ export default function LeadManagementPage() {
     }),
   });
 
+  const { data: fetchedLead } = useQuery<Lead>({
+    queryKey: ["/api/leads", urlLeadId],
+    queryFn: () => leadsService.getById(urlLeadId!),
+    enabled: !!urlLeadId,
+  });
+
+  const activeDetailLead = fetchedLead || (urlLeadId && leads ? leads.find(l => l.id === urlLeadId) : null) || null;
+
+  const closeDetail = () => {
+    setLocation("/lead-management");
+  };
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => leadsService.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({ title: "Lead deleted", description: "The lead has been removed" });
+      if (urlLeadId) closeDetail();
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to delete lead", variant: "destructive" });
@@ -171,7 +192,7 @@ export default function LeadManagementPage() {
   };
 
   const openDetail = (lead: Lead) => {
-    setLocation(`/leads/${lead.id}`);
+    setLocation(`/lead-management?lead=${lead.id}`);
   };
 
   const hasActiveFilters = searchQuery || statusFilter !== "all" || scoreFilter !== "all" || dateFilter !== "all";
@@ -211,10 +232,6 @@ export default function LeadManagementPage() {
           <Button variant="outline" size="sm" onClick={handleExport} data-testid="button-export-csv">
             <Download className="h-4 w-4 mr-2" />
             Export CSV
-          </Button>
-          <Button size="sm" onClick={() => setIsDialogOpen(true)} data-testid="button-create-lead">
-            <Plus className="h-4 w-4 mr-2" />
-            Create Lead
           </Button>
         </div>
       </div>
@@ -360,7 +377,7 @@ export default function LeadManagementPage() {
                             <Mail className="h-4 w-4 mr-2" /> Email
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedLead(lead); setIsDialogOpen(true); }}>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedLeadForEdit(lead); setIsDialogOpen(true); }}>
                             <Edit className="h-4 w-4 mr-2" /> Edit Lead
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); scoreMutation.mutate(lead.id); }}>
@@ -415,7 +432,7 @@ export default function LeadManagementPage() {
                           <Mail className="h-4 w-4 mr-2" /> Send Email
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedLead(lead); setIsDialogOpen(true); }}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedLeadForEdit(lead); setIsDialogOpen(true); }}>
                           <Edit className="h-4 w-4 mr-2" /> Edit
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); scoreMutation.mutate(lead.id); }}>
@@ -471,14 +488,22 @@ export default function LeadManagementPage() {
         </Card>
       )}
 
-      {/* Reusable Lead Dialog (Create/Edit) */}
+      {/* View Lead Details Sheet */}
+      <LeadDetailsSheet
+        isOpen={!!urlLeadId}
+        onClose={closeDetail}
+        lead={activeDetailLead as Lead}
+        isLoading={!!urlLeadId && !activeDetailLead}
+      />
+
+      {/* Reusable Lead Dialog (Edit) */}
       <LeadDialog
         open={isDialogOpen}
         onOpenChange={(open) => {
           setIsDialogOpen(open);
-          if (!open) setSelectedLead(null);
+          if (!open) setSelectedLeadForEdit(null);
         }}
-        lead={selectedLead}
+        lead={selectedLeadForEdit}
       />
 
       {/* Shared CSV Import Dialog */}
