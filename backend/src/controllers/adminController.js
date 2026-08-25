@@ -10,20 +10,20 @@ const getPlatformStats = asyncHandler(async (req, res) => {
     
     // Users
     const usersResult = await pool.query(`SELECT COUNT(*) as count FROM users`);
-    const activeUsersResult = await pool.query(`SELECT COUNT(DISTINCT user_id) as count FROM activity_logs WHERE created_at > NOW() - INTERVAL '30 days'`);
+    const activeUsersResult = await pool.query(`SELECT COUNT(DISTINCT user_id) as count FROM activities WHERE created_at > NOW() - INTERVAL '30 days'`);
     
     // Leads
     const leadsResult = await pool.query(`SELECT COUNT(*) as count FROM leads`);
     const leadsTodayResult = await pool.query(`SELECT COUNT(*) as count FROM leads WHERE created_at > CURRENT_DATE`);
     
     // Automations
-    const automationsResult = await pool.query(`SELECT COUNT(*) as count FROM automations`);
+    const automationsResult = await pool.query(`SELECT COUNT(*) as count FROM automation_workflows`);
     const executionsResult = await pool.query(`
         SELECT 
             COUNT(*) as total,
             SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success,
             SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
-        FROM automation_executions
+        FROM workflow_executions
     `);
     
     // Emails
@@ -83,8 +83,8 @@ const getUsers = asyncHandler(async (req, res) => {
         SELECT 
             u.id, u.email, u.first_name, u.last_name, u.role, u.created_at,
             (SELECT COUNT(*) FROM leads WHERE user_id = u.id) as leads_count,
-            (SELECT COUNT(*) FROM automations WHERE user_id = u.id) as automations_count,
-            (SELECT MAX(created_at) FROM activity_logs WHERE user_id = u.id) as last_activity
+            (SELECT COUNT(*) FROM automation_workflows WHERE user_id = u.id) as automations_count,
+            (SELECT MAX(created_at) FROM activities WHERE user_id = u.id) as last_activity
         FROM users u
         ORDER BY u.created_at DESC
         LIMIT 100
