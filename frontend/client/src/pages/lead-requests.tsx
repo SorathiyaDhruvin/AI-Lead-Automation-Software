@@ -144,22 +144,28 @@ export default function LeadRequestsPage() {
 
   return (
     <div className="p-6 space-y-8 max-w-6xl mx-auto pb-24">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Lead Request</h1>
-        <p className="text-muted-foreground mt-1">
-          Request lead-related services or assistance from LeadFlow AI.
-        </p>
-      </div>
-
-      <Card className="border-border/50 shadow-sm">
-        <CardHeader className="bg-muted/10 border-b pb-4">
-          <CardTitle className="text-lg">New Request</CardTitle>
-          <CardDescription>Fill out the form below to submit your request.</CardDescription>
-        </CardHeader>
-        <CardContent className="p-6">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Lead Requests</h1>
+          <p className="text-muted-foreground mt-1">
+            Submit and track your lead requests.
+          </p>
+        </div>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              New Request
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Submit Lead Request</DialogTitle>
+              <DialogDescription>Fill out the form to submit a new lead request for review.</DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="companyName"
@@ -193,7 +199,7 @@ export default function LeadRequestsPage() {
                     )}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="email"
@@ -227,7 +233,7 @@ export default function LeadRequestsPage() {
                     )}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="requestType"
@@ -327,9 +333,9 @@ export default function LeadRequestsPage() {
                     </FormItem>
                   )}
                 />
-                <div className="flex justify-end gap-3 pt-4 border-t">
-                  <Button type="button" variant="outline" onClick={() => form.reset()}>
-                    Clear Form
+                <div className="flex justify-end gap-3 pt-4 border-t mt-4">
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    Cancel
                   </Button>
                   <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-request">
                     {createMutation.isPending ? "Submitting..." : "Submit Request"}
@@ -337,8 +343,9 @@ export default function LeadRequestsPage() {
                 </div>
               </form>
             </Form>
-        </CardContent>
-      </Card>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       <div className="pt-4">
         <h2 className="text-2xl font-bold text-foreground mb-6">My Requests</h2>
