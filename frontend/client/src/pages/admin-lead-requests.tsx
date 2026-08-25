@@ -319,7 +319,7 @@ export default function AdminLeadRequestsPage() {
           </DialogHeader>
           {selectedRequest && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Building2 className="h-4 w-4" />
@@ -334,12 +334,12 @@ export default function AdminLeadRequestsPage() {
                   </div>
                   <p className="font-medium">{selectedRequest.contactName}</p>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 sm:col-span-2">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Mail className="h-4 w-4" />
                     Email
                   </div>
-                  <p className="font-medium">{selectedRequest.email}</p>
+                  <p className="font-medium break-all">{selectedRequest.email}</p>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
