@@ -49,7 +49,7 @@ const leadModel = {
         let query = `
             SELECT l.*, 
                    u.email AS owner_email,
-                   (SELECT status FROM workflow_executions WHERE lead_id = l.id ORDER BY started_at DESC LIMIT 1) AS automation_status
+                   (SELECT status FROM workflow_executions WHERE lead_id::text = l.id ORDER BY started_at DESC LIMIT 1) AS automation_status
             FROM leads l
             LEFT JOIN users u ON l.user_id = u.id
         `;
