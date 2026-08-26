@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import {
   Bell,
   Settings as SettingsIcon,
@@ -60,8 +61,12 @@ const settingsSchema = z.object({
 type SettingsForm = z.infer<typeof settingsSchema>;
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const settingsForm = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
@@ -123,12 +128,32 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAccount = async () => {
-    // In a real app, you would call the backend to delete the user
-    toast({ 
-      title: "Account marked for deletion", 
-      description: "We are processing your request.",
-      variant: "destructive"
-    });
+    if (deleteConfirmation !== "DELETE") return;
+    
+    setIsDeleting(true);
+    try {
+      const res = await fetch("/api/profile/account", { method: "DELETE" });
+      const data = await res.json();
+      
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to delete account");
+      }
+      
+      toast({ title: "Account Deleted", description: "Your account has been permanently deleted." });
+      
+      // Sign out and redirect
+      await signOut();
+      queryClient.clear();
+      localStorage.clear();
+      setLocation("/login");
+    } catch (error: any) {
+      toast({ 
+        title: "Unable to delete your account", 
+        description: error.message || "Please try again.", 
+        variant: "destructive" 
+      });
+      setIsDeleting(false);
+    }
   };
 
   if (isLoading) {
@@ -260,34 +285,33 @@ export default function SettingsPage() {
                 <CardDescription className="text-destructive/80">Irreversible and destructive actions.</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <h4 className="font-semibold text-foreground">Delete Account</h4>
-                    <p className="text-sm text-muted-foreground">Permanently delete your account and all associated data.</p>
+                <div className="flex flex-col space-y-4 md:space-y-0 md:flex-row items-start md:items-center justify-between rounded-lg border p-4 shadow-sm bg-background border-destructive/20">
+                  <div className="space-y-0.5">
+                    <h4 className="text-base font-semibold text-destructive">Delete Account</h4>
+                    <p className="text-sm text-muted-foreground">
+                      This action permanently deletes your account and associated data. This cannot be undone.
+                    </p>
                   </div>
-                  
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive">
-                        <Trash2 className="h-4 w-4 mr-2" /> Delete Account
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. This will permanently delete your
-                          account and remove your data from our servers.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                          Yes, delete account
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <div className="flex flex-col gap-2 w-full md:w-auto">
+                    <input 
+                      type="text" 
+                      placeholder="Type DELETE to confirm" 
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={deleteConfirmation}
+                      onChange={(e) => setDeleteConfirmation(e.target.value)}
+                    />
+                    <Button 
+                      variant="destructive" 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleDeleteAccount();
+                      }}
+                      disabled={deleteConfirmation !== "DELETE" || isDeleting}
+                      className="w-full"
+                    >
+                      {isDeleting ? "Deleting..." : <><Trash2 className="h-4 w-4 mr-2" /> Delete Account</>}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
