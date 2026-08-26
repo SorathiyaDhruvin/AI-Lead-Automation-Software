@@ -18,5 +18,6 @@ router.use(authMiddleware);
 router.get("/", profileController.getProfile);
 router.put("/", profileController.updateProfile);
 router.patch("/photo", upload.single("photo"), profileController.uploadPhoto);
+router.delete("/account", profileController.deleteAccount);
 
 module.exports = router;

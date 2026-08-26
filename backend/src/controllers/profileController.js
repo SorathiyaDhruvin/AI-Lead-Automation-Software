@@ -1,6 +1,13 @@
 const userModel = require("../models/userModel");
 const { asyncHandler } = require("../middleware/errorHandler");
 const ImageKit = require("imagekit");
+const { createClient } = require("@supabase/supabase-js");
+const pool = require("../config/db");
+
+const supabase = createClient(
+    process.env.SUPABASE_URL || "",
+    process.env.SUPABASE_SECRET_KEY || ""
+);
 
 // Initialize ImageKit
 let imagekit = null;
@@ -144,4 +151,63 @@ const uploadPhoto = asyncHandler(async (req, res) => {
     }
 });
 
-module.exports = { getProfile, updateProfile, uploadPhoto };
+/**
+ * DELETE /api/profile/account
+ * Permanently delete the currently authenticated user's account and session.
+ */
+const deleteAccount = asyncHandler(async (req, res) => {
+    const userId = req.userId;
+    
+    // Ensure user exists
+    const user = await userModel.getById(userId);
+    if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Attempt to find and delete Supabase Auth user
+    try {
+        const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers();
+        if (!listError && authUsers?.users) {
+            const authUser = authUsers.users.find(
+                u => u.email?.toLowerCase() === user.email?.toLowerCase()
+            );
+            if (authUser) {
+                const { error: deleteError } = await supabase.auth.admin.deleteUser(authUser.id);
+                if (deleteError) {
+                    console.error("[DELETE ACCOUNT] Supabase Admin API delete failed:", deleteError.message);
+                    return res.status(500).json({ success: false, message: "Failed to delete auth user" });
+                }
+            } else {
+                console.warn(`[DELETE ACCOUNT] Supabase Auth user not found for email: ${user.email}, proceeding to delete from local DB.`);
+            }
+        } else {
+            console.warn("[DELETE ACCOUNT] Failed to list Supabase users, proceeding with local delete.");
+        }
+    } catch (err) {
+        console.error("[DELETE ACCOUNT] Supabase operation failed:", err.message);
+        // Continue with local delete anyway
+    }
+
+    // Delete user from local database
+    // Cascading deletes should handle related rows, but we use a transaction just in case
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        // Let ON DELETE CASCADE handle leads, automations, activity logs etc. if configured properly
+        // Delete from users table
+        await client.query('DELETE FROM users WHERE id = $1', [userId]);
+        
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("[DELETE ACCOUNT] Database deletion failed:", err);
+        return res.status(500).json({ success: false, message: "Failed to delete account data from database" });
+    } finally {
+        client.release();
+    }
+
+    res.json({ success: true, message: "Account deleted successfully" });
+});
+
+module.exports = { getProfile, updateProfile, uploadPhoto, deleteAccount };

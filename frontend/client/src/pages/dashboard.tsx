@@ -35,7 +35,7 @@ import { segmentsService } from "@/services/segments";
 import type { Lead, Segment, DashboardStats } from "@/types";
 import { LeadScoreChart } from "@/components/lead-score-chart";
 import { RecentLeads } from "@/components/recent-leads";
-import { format } from "date-fns";
+import { formatWithTimezone as format } from "@/lib/date-utils";
 import { useAuth } from "@/hooks/useAuth";
 
 const STATUS_COLORS: Record<string, string> = {

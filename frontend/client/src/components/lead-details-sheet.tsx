@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { formatWithTimezone as format } from "@/lib/date-utils";
 import {
   Sparkles, Mail, Phone, Building, Calendar, Brain, TrendingUp, Lightbulb, ArrowRight,
   Send, FileText, Activity, Clock, User, Star, StickyNote, type LucideIcon,

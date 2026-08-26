@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import {
   Settings as SettingsIcon,
   X,
@@ -13,7 +14,9 @@ import {
   Laptop,
   Workflow,
   Shield,
-  Server
+  Server,
+  Trash2,
+  AlertTriangle
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -47,8 +50,15 @@ const adminSettingsSchema = z.object({
 
 type AdminSettingsForm = z.infer<typeof adminSettingsSchema>;
 
+import { useAuth } from "@/hooks/useAuth";
+
 export default function AdminSettingsPage() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const { signOut } = useAuth();
+
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const settingsForm = useForm<AdminSettingsForm>({
     resolver: zodResolver(adminSettingsSchema),
@@ -111,22 +121,38 @@ export default function AdminSettingsPage() {
       settingsForm.reset(data);
 
       toast({ title: "Settings saved", description: "Admin preferences and platform settings have been updated." });
-
-      // Apply theme globally immediately
-      if (data.theme === "dark") {
-        document.documentElement.classList.add("dark");
-      } else if (data.theme === "light") {
-        document.documentElement.classList.remove("dark");
-      } else {
-        if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-          document.documentElement.classList.add("dark");
-        } else {
-          document.documentElement.classList.remove("dark");
-        }
-      }
     } catch (error) {
       toast({ title: "Error", description: "Unable to save settings. Please try again.", variant: "destructive" });
       console.error("Save settings error:", error);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation !== "DELETE") return;
+    
+    setIsDeleting(true);
+    try {
+      const res = await fetch("/api/profile/account", { method: "DELETE" });
+      const data = await res.json();
+      
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to delete account");
+      }
+      
+      toast({ title: "Account Deleted", description: "Your account has been permanently deleted." });
+      
+      // Sign out and redirect
+      await signOut();
+      queryClient.clear();
+      localStorage.clear();
+      setLocation("/login");
+    } catch (error: any) {
+      toast({ 
+        title: "Unable to delete your account", 
+        description: error.message || "Please try again.", 
+        variant: "destructive" 
+      });
+      setIsDeleting(false);
     }
   };
 
@@ -267,6 +293,48 @@ export default function AdminSettingsPage() {
                   </div>
                   <div className="text-sm font-semibold text-green-500 bg-green-500/10 px-3 py-1 rounded-full flex items-center">
                     <div className="w-2 h-2 rounded-full bg-green-500 mr-2" /> Connected
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Delete Account */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+            <Card className="border-destructive/20 shadow-sm overflow-hidden">
+              <CardHeader className="bg-destructive/5 border-b pb-4">
+                <CardTitle className="text-lg flex items-center gap-2 text-destructive">
+                  <AlertTriangle className="h-5 w-5" /> Danger Zone
+                </CardTitle>
+                <CardDescription>Permanently delete your admin account.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <div className="flex flex-col space-y-4 md:space-y-0 md:flex-row items-start md:items-center justify-between rounded-lg border p-4 shadow-sm bg-background border-destructive/20">
+                  <div className="space-y-0.5">
+                    <h4 className="text-base font-semibold text-destructive">Delete Account</h4>
+                    <p className="text-sm text-muted-foreground">
+                      This action permanently deletes your account and associated data. This cannot be undone.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 w-full md:w-auto">
+                    <input 
+                      type="text" 
+                      placeholder="Type DELETE to confirm" 
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={deleteConfirmation}
+                      onChange={(e) => setDeleteConfirmation(e.target.value)}
+                    />
+                    <Button 
+                      variant="destructive" 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleDeleteAccount();
+                      }}
+                      disabled={deleteConfirmation !== "DELETE" || isDeleting}
+                      className="w-full"
+                    >
+                      {isDeleting ? "Deleting..." : <><Trash2 className="h-4 w-4 mr-2" /> Delete Account</>}
+                    </Button>
                   </div>
                 </div>
               </CardContent>

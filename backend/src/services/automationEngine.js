@@ -13,6 +13,8 @@ const activityModel = require("../models/activityModel");
 const notificationModel = require("../models/notificationModel");
 const emailLogModel = require("../models/emailLogModel");
 const emailTemplateModel = require("../models/emailTemplateModel");
+const { sendEmail } = require("./emailService");
+const pool = require("../config/db");
 const scheduledActionModel = require("../models/scheduledActionModel");
 const emailService = require("./emailService");
 
@@ -34,6 +36,26 @@ function getGeminiService() {
  */
 async function triggerEvent(eventType, lead, userId, eventData = {}) {
     try {
+        // 1. Check Global Automation Engine toggle
+        const { rows: settingsRows } = await pool.query(`SELECT value FROM platform_settings WHERE key = 'automation_engine_enabled'`);
+        let globalEnabled = true; // default true
+        if (settingsRows.length > 0) {
+            const val = settingsRows[0].value;
+            globalEnabled = val === 'true' || val === true;
+        }
+
+        if (!globalEnabled) {
+            console.log(`[AutomationEngine] Global engine is disabled. Skipping event ${eventType} for lead ${lead?.id}`);
+            return { executed: 0, skipped: 0, message: 'Global engine disabled' };
+        }
+
+        // 2. Check User-level automation preference
+        const { rows: userRows } = await pool.query(`SELECT automation_enabled FROM users WHERE id = $1`, [userId]);
+        if (userRows.length > 0 && !userRows[0].automation_enabled) {
+            console.log(`[AutomationEngine] User ${userId} has disabled automations. Skipping.`);
+            return { executed: 0, skipped: 0, message: 'User automation disabled' };
+        }
+
         // Find active workflows matching this trigger
         const workflows = await workflowModel.getActiveByTrigger(eventType);
 
