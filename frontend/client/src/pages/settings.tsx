@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { settingsService } from "@/services/settings";
 import { queryClient } from "@/lib/queryClient";
+import { apiClient } from "@/services/api";
 
 const settingsSchema = z.object({
   theme: z.string().optional(),
@@ -132,12 +133,7 @@ export default function SettingsPage() {
     
     setIsDeleting(true);
     try {
-      const res = await fetch("/api/profile/account", { method: "DELETE" });
-      const data = await res.json();
-      
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Failed to delete account");
-      }
+      await apiClient.delete("/profile/account");
       
       toast({ title: "Account Deleted", description: "Your account has been permanently deleted." });
       

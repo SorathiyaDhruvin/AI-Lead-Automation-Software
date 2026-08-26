@@ -41,6 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import { settingsService } from "@/services/settings";
 import { adminService } from "@/services/admin";
 import { queryClient } from "@/lib/queryClient";
+import { apiClient } from "@/services/api";
 
 const adminSettingsSchema = z.object({
   theme: z.string().optional(),
@@ -132,12 +133,7 @@ export default function AdminSettingsPage() {
     
     setIsDeleting(true);
     try {
-      const res = await fetch("/api/profile/account", { method: "DELETE" });
-      const data = await res.json();
-      
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Failed to delete account");
-      }
+      await apiClient.delete("/profile/account");
       
       toast({ title: "Account Deleted", description: "Your account has been permanently deleted." });
       
