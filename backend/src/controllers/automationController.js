@@ -48,9 +48,26 @@ const toggleRule = asyncHandler(async (req, res) => {
     res.json({ success: true, data: rule });
 });
 
+const dbWebhook = asyncHandler(async (req, res) => {
+    const { type, table, record } = req.body;
+
+    console.log(`[Webhook] Received database trigger payload: type=${type}, table=${table}`);
+
+    if (type === "INSERT" && table === "leads" && record) {
+        const lead = record;
+        console.log(`[Webhook] Database INSERT detected for lead: ${lead.id} (${lead.email})`);
+        
+        const automationEngine = require("../services/automationEngine");
+        await automationEngine.triggerEvent("lead_created", lead, lead.user_id);
+    }
+
+    res.json({ success: true });
+});
+
 module.exports = {
     getRules,
     createRule,
     deleteRule,
-    toggleRule
+    toggleRule,
+    dbWebhook,
 };

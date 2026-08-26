@@ -63,6 +63,7 @@ import { LeadDialog } from "@/components/lead-dialog";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
 import { LeadDetailsSheet } from "@/components/lead-details-sheet";
 import { formatDistanceToNow } from "date-fns";
+import { useAuth } from "@/hooks/useAuth";
 
 const statusColors: Record<string, string> = {
   new: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
@@ -76,6 +77,8 @@ const statusColors: Record<string, string> = {
 
 export default function LeadManagementPage() {
   const { toast } = useToast();
+  const { userProfile } = useAuth();
+  const isAdmin = userProfile?.role === "admin";
   const [locationPath, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -322,6 +325,8 @@ export default function LeadManagementPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>AI Score</TableHead>
                   <TableHead>Source</TableHead>
+                  {isAdmin && <TableHead>Owner</TableHead>}
+                  {isAdmin && <TableHead>Automation</TableHead>}
                   <TableHead>Added</TableHead>
                   <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
@@ -360,6 +365,25 @@ export default function LeadManagementPage() {
                     <TableCell>
                       <span className="text-sm capitalize">{lead.source.replace('_', ' ')}</span>
                     </TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        <span className="text-sm font-medium text-muted-foreground break-all">{lead.ownerEmail || "N/A"}</span>
+                      </TableCell>
+                    )}
+                    {isAdmin && (
+                      <TableCell>
+                        <Badge className={
+                          lead.automationStatus === "success" || lead.automationStatus === "completed" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" :
+                          lead.automationStatus === "failed" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" :
+                          lead.automationStatus === "running" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400" :
+                          "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300"
+                        }>
+                          {lead.automationStatus ? 
+                            (lead.automationStatus === "success" ? "Completed" : lead.automationStatus.charAt(0).toUpperCase() + lead.automationStatus.slice(1)) : 
+                            "None"}
+                        </Badge>
+                      </TableCell>
+                    )}
                     <TableCell>
                       <span className="text-xs text-muted-foreground" title={new Date(lead.createdAt).toLocaleString()}>
                         {formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true })}
@@ -473,6 +497,18 @@ export default function LeadManagementPage() {
                       <Badge variant="outline" className="text-muted-foreground">Not scored</Badge>
                     )}
                     <Badge variant="secondary" className="capitalize text-[10px]">{lead.source}</Badge>
+                    {isAdmin && lead.ownerEmail && (
+                      <Badge variant="outline" className="text-[10px] truncate max-w-[150px]">Owner: {lead.ownerEmail}</Badge>
+                    )}
+                    {isAdmin && (
+                      <Badge className={
+                        lead.automationStatus === "success" || lead.automationStatus === "completed" ? "bg-green-100 text-green-800" :
+                        lead.automationStatus === "failed" ? "bg-red-100 text-red-800" :
+                        "bg-slate-100 text-slate-800"
+                      }>
+                        Auto: {lead.automationStatus === "success" ? "Completed" : (lead.automationStatus || "None")}
+                      </Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>

@@ -36,6 +36,24 @@ function getGeminiService() {
  */
 async function triggerEvent(eventType, lead, userId, eventData = {}) {
     try {
+        // Validate lead payload
+        if (!lead || !lead.id || !lead.email) {
+            console.log(`[AutomationEngine] Invalid lead payload for trigger event ${eventType}. Skipping.`);
+            return { executed: 0, skipped: 0, message: 'Invalid lead payload' };
+        }
+
+        // Check duplicate lead by email + workspace/user
+        if (eventType === "lead_created") {
+            const { rows: duplicateRows } = await pool.query(
+                `SELECT id FROM leads WHERE email = $1 AND user_id = $2 AND id != $3`,
+                [lead.email, userId, lead.id]
+            );
+            if (duplicateRows.length > 0) {
+                console.log(`[AutomationEngine] Lead ${lead.id} is a duplicate of an existing lead with email ${lead.email}. Skipping automation.`);
+                return { executed: 0, skipped: 0, message: 'Duplicate lead' };
+            }
+        }
+
         // 1. Check Global Automation Engine toggle
         const { rows: settingsRows } = await pool.query(`SELECT value FROM platform_settings WHERE key = 'automation_engine_enabled'`);
         let globalEnabled = true; // default true

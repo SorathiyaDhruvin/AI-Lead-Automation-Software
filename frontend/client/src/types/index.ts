@@ -53,6 +53,8 @@ export interface Lead {
   segmentId: string | null;
   notes: string | null;
   lastContact: string | null;
+  ownerEmail?: string | null;
+  automationStatus?: string | null;
   createdAt: string;
   updatedAt: string;
 }

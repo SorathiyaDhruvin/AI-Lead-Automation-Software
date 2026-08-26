@@ -69,6 +69,7 @@ const adminOverviewItems = [
 
 const adminManagementItems = [
   { title: "Users", url: "/admin/users", icon: Users },
+  { title: "Lead Management", url: "/lead-management", icon: ClipboardList },
   { title: "Lead Requests", url: "/admin/lead-requests", icon: FileText },
 ];
 
