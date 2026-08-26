@@ -8,12 +8,12 @@ interface ApiResponse<T> {
 
 export const settingsService = {
   async get(): Promise<UserSettings> {
-    const res = await apiClient.get<ApiResponse<UserSettings>>("/settings");
-    return res.data;
+    const res = await apiClient.get<UserSettings>("/settings");
+    return res;
   },
 
   async update(data: Partial<UserSettings>): Promise<UserSettings> {
-    const res = await apiClient.put<ApiResponse<UserSettings>>("/settings", data);
-    return res.data;
+    const res = await apiClient.put<UserSettings>("/settings", data);
+    return res;
   },
 };
