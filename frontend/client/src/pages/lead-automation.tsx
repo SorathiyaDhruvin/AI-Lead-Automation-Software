@@ -26,6 +26,7 @@ import {
   Filter,
   ListChecks,
   Eye,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -67,6 +68,7 @@ import { segmentsService } from "@/services/segments";
 
 const triggerOptions = [
   { id: "lead_created", name: "New Lead Created", icon: Users, color: "#0066FF" },
+  { id: "lead_request_created", name: "New Lead Request", icon: ClipboardList, color: "#FF9900" },
   { id: "lead_scored", name: "Lead Scored", icon: Sparkles, color: "#6C5CE7" },
   { id: "lead_status_changed", name: "Status Changed", icon: Activity, color: "#00D68F" },
   { id: "lead_request_approved", name: "Lead Request Approved", icon: CheckCircle, color: "#FFB946" },

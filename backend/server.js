@@ -21,6 +21,7 @@ function startDbListener() {
         .then(async () => {
             console.log("🔊 Database listener connected and listening to channel: lead_created");
             await client.query("LISTEN lead_created");
+            await client.query("LISTEN lead_request_created");
 
             client.on("notification", async (msg) => {
                 if (msg.channel === "lead_created") {
@@ -32,6 +33,16 @@ function startDbListener() {
                         await automationEngine.triggerEvent("lead_created", lead, lead.user_id);
                     } catch (err) {
                         console.error("[DbListener] Error processing notification:", err.message);
+                    }
+                } else if (msg.channel === "lead_request_created") {
+                    try {
+                        const leadRequest = JSON.parse(msg.payload);
+                        console.log(`[DbListener] New lead request inserted: ${leadRequest.id} (${leadRequest.email})`);
+                        
+                        const automationEngine = require("./src/services/automationEngine");
+                        await automationEngine.triggerEvent("lead_request_created", leadRequest, leadRequest.user_id);
+                    } catch (err) {
+                        console.error("[DbListener] Error processing lead_request notification:", err.message);
                     }
                 }
             });

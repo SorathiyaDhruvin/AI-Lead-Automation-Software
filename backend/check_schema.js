@@ -8,9 +8,9 @@ const pool = new Pool({
 
 async function run() {
     const res = await pool.query(`
-        SELECT schemaname, tablename, policyname, roles, cmd, qual, with_check 
-        FROM pg_policies 
-        WHERE tablename IN ('automation_workflows', 'workflow_executions');
+        SELECT conname, contype, pg_get_constraintdef(oid) 
+        FROM pg_constraint 
+        WHERE conrelid = 'activities'::regclass;
     `);
     console.table(res.rows);
     pool.end();

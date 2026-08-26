@@ -280,7 +280,12 @@ async function executeAction(action, lead, userId, executionId) {
         case "update_lead_status":
         case "update_status": {
             const newStatus = action.value || action.config?.status || "contacted";
-            await leadModel.update(lead.id, { status: newStatus });
+            if (lead.request_type) {
+                const leadRequestModel = require("../models/leadRequestModel");
+                await leadRequestModel.update(lead.id, { status: newStatus });
+            } else {
+                await leadModel.update(lead.id, { status: newStatus });
+            }
             await activityModel.create({
                 leadId: lead.id,
                 userId,
@@ -322,22 +327,25 @@ async function executeAction(action, lead, userId, executionId) {
 
             let subject, body;
             if (template) {
-                const nameParts = (lead.name || "").split(" ");
+                const leadName = lead.name || lead.contact_name || "";
+                const nameParts = leadName.split(" ");
                 const firstName = nameParts[0] || "";
                 const lastName = nameParts.slice(1).join(" ") || "";
+                
+                const company = lead.company || lead.company_name || "";
 
                 const vars = {
                     "firstName": firstName,
                     "lastName": lastName,
                     "email": lead.email || "",
-                    "company": lead.company || "",
+                    "company": company,
                     "phone": lead.phone || "",
-                    "lead.name": lead.name || "",
+                    "lead.name": leadName,
                     "lead.email": lead.email || "",
-                    "lead.company": lead.company || "N/A",
+                    "lead.company": company || "N/A",
                     "lead.score": String(lead.ai_score || "N/A"),
                     "lead.status": lead.status || "",
-                    "lead.source": lead.source || "",
+                    "lead.source": lead.source || lead.request_type || "",
                     "lead.category": lead.ai_category || "N/A",
                     "company.name": "LeadFlow AI",
                 };
