@@ -8,10 +8,9 @@ const pool = new Pool({
 
 async function run() {
     const res = await pool.query(`
-        SELECT table_schema, table_name, column_name, data_type 
-        FROM information_schema.columns 
-        WHERE table_name IN ('workflow_executions', 'automation_workflows') 
-          AND column_name IN ('id', 'lead_id', 'workflow_id');
+        SELECT schemaname, tablename, policyname, roles, cmd, qual, with_check 
+        FROM pg_policies 
+        WHERE tablename IN ('automation_workflows', 'workflow_executions');
     `);
     console.table(res.rows);
     pool.end();
