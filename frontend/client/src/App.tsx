@@ -308,7 +308,7 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/lead-management">
-        <ProtectedRoute>
+        <ProtectedRoute userOnly={true}>
           <AuthenticatedLayout>
             <LeadManagementPage />
           </AuthenticatedLayout>

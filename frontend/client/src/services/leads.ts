@@ -17,8 +17,6 @@ function mapLead(l: any): Lead {
   return {
     ...l,
     aiScore: l.aiScore !== undefined ? Number(l.aiScore) : (l.ai_score !== undefined && l.ai_score !== null ? Number(l.ai_score) : null),
-    ownerEmail: l.ownerEmail || l.owner_email,
-    automationStatus: l.automationStatus || l.automation_status,
     createdAt: l.createdAt || l.created_at,
     updatedAt: l.updatedAt || l.updated_at,
   };

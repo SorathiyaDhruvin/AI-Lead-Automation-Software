@@ -5,60 +5,38 @@ const leadModel = {
      * Get leads for a user with optional filters.
      * Builds WHERE clauses dynamically for search, status, score range, and limit.
      */
-    /**
-     * Get leads for a user with optional filters.
-     * Builds WHERE clauses dynamically for search, status, score range, and limit.
-     */
-    async getByUser(userId, filters = {}, isAdmin = false) {
-        const conditions = [];
-        const values = [];
-        let paramIndex = 1;
-
-        if (!isAdmin) {
-            conditions.push(`l.user_id = $${paramIndex}`);
-            values.push(userId);
-            paramIndex++;
-        }
+    async getByUser(userId, filters = {}) {
+        const conditions = ["user_id = $1"];
+        const values = [userId];
+        let paramIndex = 2;
 
         if (filters.search) {
             conditions.push(
-                `(l.name ILIKE $${paramIndex} OR l.email ILIKE $${paramIndex} OR l.company ILIKE $${paramIndex})`
+                `(name ILIKE $${paramIndex} OR email ILIKE $${paramIndex} OR company ILIKE $${paramIndex})`
             );
             values.push(`%${filters.search}%`);
             paramIndex++;
         }
 
         if (filters.status && filters.status !== "all") {
-            conditions.push(`l.status = $${paramIndex}`);
+            conditions.push(`status = $${paramIndex}`);
             values.push(filters.status);
             paramIndex++;
         }
 
         if (filters.minScore !== undefined) {
-            conditions.push(`l.ai_score >= $${paramIndex}`);
+            conditions.push(`ai_score >= $${paramIndex}`);
             values.push(filters.minScore);
             paramIndex++;
         }
 
         if (filters.maxScore !== undefined) {
-            conditions.push(`l.ai_score <= $${paramIndex}`);
+            conditions.push(`ai_score <= $${paramIndex}`);
             values.push(filters.maxScore);
             paramIndex++;
         }
 
-        let query = `
-            SELECT l.*, 
-                   u.email AS owner_email,
-                   (SELECT status FROM workflow_executions WHERE lead_id::text = l.id ORDER BY started_at DESC LIMIT 1) AS automation_status
-            FROM leads l
-            LEFT JOIN users u ON l.user_id = u.id
-        `;
-
-        if (conditions.length > 0) {
-            query += ` WHERE ${conditions.join(" AND ")}`;
-        }
-
-        query += ` ORDER BY l.created_at DESC`;
+        let query = `SELECT * FROM leads WHERE ${conditions.join(" AND ")} ORDER BY created_at DESC`;
 
         if (filters.limit) {
             query += ` LIMIT $${paramIndex}`;
@@ -83,12 +61,12 @@ const leadModel = {
     /**
      * Create a new lead.
      */
-    async create({ userId, name, email, company, phone, source = "manual", status = "new", processing_status = "accepted", notes }) {
+    async create({ userId, name, email, company, phone, source = "manual", status = "new", notes }) {
         const { rows } = await pool.query(
-            `INSERT INTO leads (user_id, name, email, company, phone, source, status, processing_status, notes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            `INSERT INTO leads (user_id, name, email, company, phone, source, status, notes)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              RETURNING *`,
-            [userId, name, email, company || null, phone || null, source, status, processing_status, notes || null]
+            [userId, name, email, company || null, phone || null, source, status, notes || null]
         );
         return rows[0];
     },
@@ -102,8 +80,6 @@ const leadModel = {
             phone: "phone",
             source: "source",
             status: "status",
-            processingStatus: "processing_status",
-            processing_status: "processing_status",
             aiScore: "ai_score",
             aiCategory: "ai_category",
             aiPrediction: "ai_prediction",

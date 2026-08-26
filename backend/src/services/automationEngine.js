@@ -36,24 +36,6 @@ function getGeminiService() {
  */
 async function triggerEvent(eventType, lead, userId, eventData = {}) {
     try {
-        // Validate lead payload
-        if (!lead || !lead.id || !lead.email) {
-            console.log(`[AutomationEngine] Invalid lead payload for trigger event ${eventType}. Skipping.`);
-            return { executed: 0, skipped: 0, message: 'Invalid lead payload' };
-        }
-
-        // Check duplicate lead by email + workspace/user
-        if (eventType === "lead_created") {
-            const { rows: duplicateRows } = await pool.query(
-                `SELECT id FROM leads WHERE email = $1 AND user_id = $2 AND id != $3`,
-                [lead.email, userId, lead.id]
-            );
-            if (duplicateRows.length > 0) {
-                console.log(`[AutomationEngine] Lead ${lead.id} is a duplicate of an existing lead with email ${lead.email}. Skipping automation.`);
-                return { executed: 0, skipped: 0, message: 'Duplicate lead' };
-            }
-        }
-
         // 1. Check Global Automation Engine toggle
         const { rows: settingsRows } = await pool.query(`SELECT value FROM platform_settings WHERE key = 'automation_engine_enabled'`);
         let globalEnabled = true; // default true
@@ -135,7 +117,7 @@ async function executeWorkflow(workflow, lead, userId, eventType, eventData = {}
             totalActions: actions.length,
             idempotencyKey,
         }).then(exec => executionModel.updateStatus(exec.id, "skipped", 0, "Conditions not met"))
-          .catch(err => console.error("[AutomationEngine] Failed to log skipped execution:", err.message));
+            .catch(err => console.error("[AutomationEngine] Failed to log skipped execution:", err.message));
         return { skipped: true };
     }
 
@@ -280,12 +262,7 @@ async function executeAction(action, lead, userId, executionId) {
         case "update_lead_status":
         case "update_status": {
             const newStatus = action.value || action.config?.status || "contacted";
-            if (lead.request_type) {
-                const leadRequestModel = require("../models/leadRequestModel");
-                await leadRequestModel.update(lead.id, { status: newStatus });
-            } else {
-                await leadModel.update(lead.id, { status: newStatus });
-            }
+            await leadModel.update(lead.id, { status: newStatus });
             await activityModel.create({
                 leadId: lead.id,
                 userId,
@@ -317,7 +294,7 @@ async function executeAction(action, lead, userId, executionId) {
         case "send_email": {
             let recipientInput = action.config?.recipient === "[ Lead Email ]" ? lead.email : (action.config?.recipient || lead.email);
             if (recipientInput === "{{email}}") recipientInput = lead.email;
-            
+
             if (!recipientInput) {
                 throw new Error("Recipient email address is missing");
             }
@@ -327,31 +304,28 @@ async function executeAction(action, lead, userId, executionId) {
 
             let subject, body;
             if (template) {
-                const leadName = lead.name || lead.contact_name || "";
-                const nameParts = leadName.split(" ");
+                const nameParts = (lead.name || "").split(" ");
                 const firstName = nameParts[0] || "";
                 const lastName = nameParts.slice(1).join(" ") || "";
-                
-                const company = lead.company || lead.company_name || "";
 
                 const vars = {
                     "firstName": firstName,
                     "lastName": lastName,
                     "email": lead.email || "",
-                    "company": company,
+                    "company": lead.company || "",
                     "phone": lead.phone || "",
-                    "lead.name": leadName,
+                    "lead.name": lead.name || "",
                     "lead.email": lead.email || "",
-                    "lead.company": company || "N/A",
+                    "lead.company": lead.company || "N/A",
                     "lead.score": String(lead.ai_score || "N/A"),
                     "lead.status": lead.status || "",
-                    "lead.source": lead.source || lead.request_type || "",
+                    "lead.source": lead.source || "",
                     "lead.category": lead.ai_category || "N/A",
                     "company.name": "LeadFlow AI",
                 };
-                
+
                 body = emailTemplateModel.renderTemplate(template, vars);
-                
+
                 subject = template.subject;
                 Object.keys(vars).forEach(key => {
                     const regex = new RegExp(`{{${key}}}`, "g");
@@ -490,6 +464,14 @@ function calculateDelayMs(action) {
     if (config.days) return config.days * 24 * 60 * 60 * 1000;
     // Default 1 hour
     return 60 * 60 * 1000;
+}
+
+module.exports = {
+    triggerEvent,
+    executeWorkflow,
+    executeAction,
+    evaluateConditions,
+};
 }
 
 module.exports = {

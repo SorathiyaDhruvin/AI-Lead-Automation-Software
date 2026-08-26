@@ -69,7 +69,6 @@ const adminOverviewItems = [
 
 const adminManagementItems = [
   { title: "Users", url: "/admin/users", icon: Users },
-  { title: "Lead Management", url: "/lead-management", icon: ClipboardList },
   { title: "Lead Requests", url: "/admin/lead-requests", icon: FileText },
 ];
 
@@ -86,7 +85,7 @@ const adminSystemItems = [
 export function AppSidebar() {
   const [location, setLocation] = useLocation();
   const { user, userProfile, signOut } = useAuth();
-  
+
   const isAdmin = userProfile?.role === "admin";
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {

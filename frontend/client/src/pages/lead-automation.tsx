@@ -26,7 +26,6 @@ import {
   Filter,
   ListChecks,
   Eye,
-  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -68,7 +67,6 @@ import { segmentsService } from "@/services/segments";
 
 const triggerOptions = [
   { id: "lead_created", name: "New Lead Created", icon: Users, color: "#0066FF" },
-  { id: "lead_request_created", name: "New Lead Request", icon: ClipboardList, color: "#FF9900" },
   { id: "lead_scored", name: "Lead Scored", icon: Sparkles, color: "#6C5CE7" },
   { id: "lead_status_changed", name: "Status Changed", icon: Activity, color: "#00D68F" },
   { id: "lead_request_approved", name: "Lead Request Approved", icon: CheckCircle, color: "#FFB946" },
@@ -646,11 +644,10 @@ export default function LeadAutomationPage() {
                       data-testid={`execution-${execution.id}`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                          execution.status === "success" ? "bg-success/20" :
-                          execution.status === "running" ? "bg-primary/20" :
-                          execution.status === "skipped" ? "bg-muted" : "bg-destructive/20"
-                        }`}>
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center ${execution.status === "success" ? "bg-success/20" :
+                            execution.status === "running" ? "bg-primary/20" :
+                              execution.status === "skipped" ? "bg-muted" : "bg-destructive/20"
+                          }`}>
                           {execution.status === "success" ? (
                             <CheckCircle className="h-4 w-4 text-success" />
                           ) : execution.status === "running" ? (
@@ -672,8 +669,8 @@ export default function LeadAutomationPage() {
                       <div className="text-right">
                         <Badge variant={
                           execution.status === "success" ? "default" :
-                          execution.status === "running" ? "secondary" :
-                          execution.status === "skipped" ? "outline" : "destructive"
+                            execution.status === "running" ? "secondary" :
+                              execution.status === "skipped" ? "outline" : "destructive"
                         }>
                           {execution.status}
                         </Badge>
@@ -864,7 +861,7 @@ export default function LeadAutomationPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                    
+
                     {action.type !== "send_email" && (
                       <Input
                         placeholder="Value (e.g. status)"
@@ -877,7 +874,7 @@ export default function LeadAutomationPage() {
                         className="flex-1"
                       />
                     )}
-                    
+
                     <Button variant="ghost" size="icon" onClick={() => removeAction(i)}>
                       <Trash2 className="h-3 w-3" />
                     </Button>

@@ -19,8 +19,7 @@ const getLeads = asyncHandler(async (req, res) => {
         limit: req.query.limit ? parseInt(req.query.limit) : undefined,
     };
 
-    const isAdmin = req.userRole === "admin";
-    const leads = await leadModel.getByUser(req.userId, filters, isAdmin);
+    const leads = await leadModel.getByUser(req.userId, filters);
 
     res.json({
         success: true,
@@ -67,18 +66,6 @@ const createLead = asyncHandler(async (req, res) => {
         });
     }
 
-    // Check for duplicate lead by email + workspace/user
-    const existingLeads = await leadModel.getByUser(req.userId);
-    const duplicate = existingLeads.find(l => l.email.toLowerCase() === email.toLowerCase());
-
-    if (duplicate) {
-        return res.status(200).json({
-            success: true,
-            message: "Lead already exists",
-            data: duplicate,
-        });
-    }
-
     const lead = await leadModel.create({
         userId: req.userId,
         name,
@@ -108,13 +95,17 @@ const createLead = asyncHandler(async (req, res) => {
     // Async trigger welcome email if lead has email
     if (lead.email && emailService.isConfigured()) {
         emailService.sendEmail({
-            to: lead.email, 
-            subject: "Welcome to LeadFlow!", 
+            to: lead.email,
+            subject: "Welcome to LeadFlow!",
             html: emailService.buildWelcomeEmail(lead.name)
         })
             .then(result => console.log(`Welcome email accepted by Brevo for ${lead.email}: ${result?.id}`))
             .catch(err => console.error(`Failed to send welcome email to ${lead.email}:`, err.message));
     }
+
+    // Trigger automation workflows for lead_created event
+    automationEngine.triggerEvent("lead_created", lead, req.userId)
+        .catch((err) => console.error("Automation trigger error:", err.message));
 
     res.status(201).json({
         success: true,
@@ -218,7 +209,7 @@ const scoreLead = asyncHandler(async (req, res) => {
 
     try {
         const result = await geminiService.scoreLead(existing);
-        
+
         // Map all rating, category, and insights fields to keep compatibility with UI schemas
         const updatedLead = await leadModel.update(existing.id, {
             ai_score: result.score,
@@ -254,9 +245,9 @@ const scoreLead = asyncHandler(async (req, res) => {
 
     } catch (error) {
         console.error("AI Lead Scoring Controller Error:", error.message);
-        res.status(500).json({ 
-            success: false, 
-            message: "AI scoring failed: " + error.message 
+        res.status(500).json({
+            success: false,
+            message: "AI scoring failed: " + error.message
         });
     }
 });
@@ -350,7 +341,7 @@ const sendLeadEmail = asyncHandler(async (req, res) => {
             subject,
             html: emailService.buildFollowUpEmail(lead.name, message)
         });
-        
+
         await activityModel.create({
             leadId: lead.id,
             userId: req.userId,
@@ -360,9 +351,9 @@ const sendLeadEmail = asyncHandler(async (req, res) => {
 
         res.json({ success: true, message: "Email sent successfully" });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            message: "Email failed: " + error.message 
+        res.status(500).json({
+            success: false,
+            message: "Email failed: " + error.message
         });
     }
 });
@@ -378,32 +369,20 @@ const exportCsv = asyncHandler(async (req, res) => {
         maxScore: req.query.maxScore ? parseInt(req.query.maxScore) : undefined,
     };
 
-    const isAdmin = req.userRole === "admin";
-    const userLeads = await leadModel.getByUser(req.userId, filters, isAdmin);
+    const userLeads = await leadModel.getByUser(req.userId, filters);
 
-    let header = "name,email,company,phone,source,status,ai_score,ai_category,created_at";
-    if (isAdmin) {
-        header += ",owner,automation_status";
-    }
-
-    const rows = userLeads.map((l) => {
-        const base = [
-            `"${(l.name || "").replace(/"/g, '""')}"`,
-            `"${(l.email || "").replace(/"/g, '""')}"`,
-            `"${(l.company || "").replace(/"/g, '""')}"`,
-            `"${(l.phone || "").replace(/"/g, '""')}"`,
-            `"${(l.source || "").replace(/"/g, '""')}"`,
-            `"${(l.status || "").replace(/"/g, '""')}"`,
-            l.ai_score ?? "",
-            `"${(l.ai_category || "").replace(/"/g, '""')}"`,
-            `"${l.created_at ? new Date(l.created_at).toISOString().slice(0, 10) : ""}"`,
-        ];
-        if (isAdmin) {
-            base.push(`"${(l.owner_email || "").replace(/"/g, '""')}"`);
-            base.push(`"${(l.automation_status || "").replace(/"/g, '""')}"`);
-        }
-        return base.join(",");
-    });
+    const header = "name,email,company,phone,source,status,ai_score,ai_category,created_at";
+    const rows = userLeads.map((l) => [
+        `"${(l.name || "").replace(/"/g, '""')}"`,
+        `"${(l.email || "").replace(/"/g, '""')}"`,
+        `"${(l.company || "").replace(/"/g, '""')}"`,
+        `"${(l.phone || "").replace(/"/g, '""')}"`,
+        `"${(l.source || "").replace(/"/g, '""')}"`,
+        `"${(l.status || "").replace(/"/g, '""')}"`,
+        l.ai_score ?? "",
+        `"${(l.ai_category || "").replace(/"/g, '""')}"`,
+        `"${l.created_at ? new Date(l.created_at).toISOString().slice(0, 10) : ""}"`,
+    ].join(","));
 
     const csv = [header, ...rows].join("\n");
     res.setHeader("Content-Type", "text/csv");
@@ -451,8 +430,6 @@ const importCsv = asyncHandler(async (req, res) => {
     let created = 0;
     const errors = [];
 
-    const existingLeads = await leadModel.getByUser(req.userId);
-
     for (let i = 1; i < lines.length; i++) {
         const row = parseRow(lines[i]);
         const name = row[idx("name")] || "";
@@ -467,13 +444,6 @@ const importCsv = asyncHandler(async (req, res) => {
         }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             errors.push(`Row ${i + 1}: invalid email "${email}"`);
-            continue;
-        }
-
-        // Check for duplicate lead by email + workspace/user
-        const duplicate = existingLeads.find(l => l.email.toLowerCase() === email.toLowerCase());
-        if (duplicate) {
-            errors.push(`Row ${i + 1}: Lead with email "${email}" already exists`);
             continue;
         }
 
@@ -504,7 +474,7 @@ const importCsv = asyncHandler(async (req, res) => {
             userId: req.userId,
             type: "lead_created",
             message: `CSV import: ${created} lead${created !== 1 ? "s" : ""} imported successfully`
-        }).catch(() => {});
+        }).catch(() => { });
     }
 
     res.json({

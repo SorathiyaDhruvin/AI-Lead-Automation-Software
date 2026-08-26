@@ -3,9 +3,6 @@ const router = express.Router();
 const { authMiddleware } = require("../middleware/auth");
 const automationController = require("../controllers/automationController");
 
-// Public webhook route for Supabase database triggers (bypasses standard token auth)
-router.post("/db-webhook", automationController.dbWebhook);
-
 router.use(authMiddleware);
 
 router.get("/rules", automationController.getRules);
