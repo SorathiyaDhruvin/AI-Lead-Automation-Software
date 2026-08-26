@@ -9,13 +9,11 @@ interface ApiResponse<T> {
 
 export const workflowsService = {
   async getAll(): Promise<Workflow[]> {
-    const res = await apiClient.get<ApiResponse<Workflow[]>>("/workflows");
-    return res.data;
+    return apiClient.get<Workflow[]>("/workflows");
   },
 
   async getById(id: string): Promise<Workflow> {
-    const res = await apiClient.get<ApiResponse<Workflow>>(`/workflows/${id}`);
-    return res.data;
+    return apiClient.get<Workflow>(`/workflows/${id}`);
   },
 
   async create(data: {
@@ -26,8 +24,7 @@ export const workflowsService = {
     actions?: Array<{ type: string; name: string; value?: string; config?: Record<string, any> }>;
     isActive?: boolean;
   }): Promise<Workflow> {
-    const res = await apiClient.post<ApiResponse<Workflow>>("/workflows", data);
-    return res.data;
+    return apiClient.post<Workflow>("/workflows", data);
   },
 
   async update(id: string, data: Partial<{
@@ -38,8 +35,7 @@ export const workflowsService = {
     actions: any[];
     isActive: boolean;
   }>): Promise<Workflow> {
-    const res = await apiClient.put<ApiResponse<Workflow>>(`/workflows/${id}`, data);
-    return res.data;
+    return apiClient.put<Workflow>(`/workflows/${id}`, data);
   },
 
   async delete(id: string): Promise<void> {
@@ -47,23 +43,19 @@ export const workflowsService = {
   },
 
   async toggle(id: string, isActive: boolean): Promise<Workflow> {
-    const res = await apiClient.patch<ApiResponse<Workflow>>(`/workflows/${id}/toggle`, { isActive });
-    return res.data;
+    return apiClient.patch<Workflow>(`/workflows/${id}/toggle`, { isActive });
   },
 
   async run(id: string): Promise<{ executed: number; failed: number; total: number; errors: string[] }> {
-    const res = await apiClient.post<ApiResponse<{ executed: number; failed: number; total: number; errors: string[] }>>(`/workflows/${id}/run`);
-    return res.data;
+    return apiClient.post<{ executed: number; failed: number; total: number; errors: string[] }>(`/workflows/${id}/run`);
   },
 
   async getExecutions(limit?: number): Promise<WorkflowExecution[]> {
     const params = limit ? `?limit=${limit}` : "";
-    const res = await apiClient.get<ApiResponse<WorkflowExecution[]>>(`/workflows/executions${params}`);
-    return res.data;
+    return apiClient.get<WorkflowExecution[]>(`/workflows/executions${params}`);
   },
 
   async getStats(): Promise<ExecutionStats> {
-    const res = await apiClient.get<ApiResponse<ExecutionStats>>("/workflows/stats");
-    return res.data;
+    return apiClient.get<ExecutionStats>("/workflows/stats");
   },
 };
