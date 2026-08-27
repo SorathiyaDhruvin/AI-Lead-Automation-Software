@@ -18,15 +18,3 @@ app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
 });
-
-scheduledProcessor.startProcessor(60000);
-// Start the real-time Postgres DB trigger listener
-startDbListener();
-    })
-    .catch ((err) => console.error("❌ PostgreSQL Connection Error:", err));
-
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
-});
-

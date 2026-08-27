@@ -465,15 +465,6 @@ function calculateDelayMs(action) {
     // Default 1 hour
     return 60 * 60 * 1000;
 }
-
-module.exports = {
-    triggerEvent,
-    executeWorkflow,
-    executeAction,
-    evaluateConditions,
-};
-}
-
 module.exports = {
     triggerEvent,
     executeWorkflow,
