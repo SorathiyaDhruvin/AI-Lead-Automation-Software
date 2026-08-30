@@ -18,7 +18,7 @@ const getHealth = async (req, res) => {
         dbStatus = "disconnected";
     }
 
-    const aiStatus = process.env.GEMINI_API_KEY ? "configured" : "missing";
+    const aiStatus = (process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.GEMINI_API_KEY) ? "configured" : "missing";
     const emailStatus = emailService.isConfigured() ? "configured" : "missing";
 
     res.json({

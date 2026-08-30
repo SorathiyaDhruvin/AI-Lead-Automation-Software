@@ -1,29 +1,48 @@
 const { GoogleGenAI } = require("@google/genai");
+const { OpenAI } = require("openai");
 
-let _ai = null;
+let _openai = null;
+let _gemini = null;
 
 function getAIClient() {
-    if (!_ai) {
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-            return null;
+    // 1. Check for OpenAI configuration (Replit AI or custom OpenAI)
+    const openAIKey = process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+    const openAIBaseURL = process.env.OPENAI_BASE_URL || process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+
+    if (openAIKey) {
+        if (!_openai) {
+            _openai = new OpenAI({
+                apiKey: openAIKey,
+                ...(openAIBaseURL ? { baseURL: openAIBaseURL } : {})
+            });
         }
-        _ai = new GoogleGenAI({ apiKey });
+        return { client: _openai, type: "openai" };
     }
-    return _ai;
+
+    // 2. Fallback to Gemini GoogleGenAI
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (geminiKey) {
+        if (!_gemini) {
+            _gemini = new GoogleGenAI({ apiKey: geminiKey });
+        }
+        return { client: _gemini, type: "gemini" };
+    }
+
+    return null;
 }
 
 /**
- * Score a lead using Google Gemini.
+ * Score a lead using Google Gemini or OpenAI.
  * Returns parsed structured JSON score object.
  */
 async function scoreLead(lead) {
-    const ai = getAIClient();
-    if (!ai) {
-        throw new Error("GEMINI_API_KEY is missing. Please configure it in environment variables.");
+    const aiInstance = getAIClient();
+    if (!aiInstance) {
+        throw new Error("No AI API key found. Please configure OPENAI_API_KEY or GEMINI_API_KEY in environment variables.");
     }
 
-    const model = process.env.AI_MODEL || "gemini-3.6-flash";
+    const { client, type } = aiInstance;
+
     const prompt = `
     You are an expert AI lead scoring assistant. Evaluate this lead and provide a score, category (Hot, Warm, or Cold), rating (high, medium, or low), prediction, insights, strengths, weaknesses, and a recommendation.
 
@@ -52,19 +71,42 @@ async function scoreLead(lead) {
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json"
-            }
-        });
+        let rawResponse = "";
 
-        if (!response.text) {
-            throw new Error("Gemini returned an empty response.");
+        if (type === "openai") {
+            const scoringModel = process.env.LEAD_SCORING_MODEL || "gpt-4o-mini";
+            const response = await client.chat.completions.create({
+                model: scoringModel,
+                messages: [
+                    { role: "system", content: "You are an expert AI lead scoring assistant. Respond strictly in JSON format matching the requested schema." },
+                    { role: "user", content: prompt }
+                ],
+                response_format: { type: "json_object" }
+            });
+            rawResponse = response.choices[0].message.content;
+        } else {
+            const model = process.env.AI_MODEL || "gemini-3.6-flash";
+            const response = await client.models.generateContent({
+                model,
+                contents: prompt,
+                config: {
+                    responseMimeType: "application/json"
+                }
+            });
+            rawResponse = response.text;
         }
 
-        const data = JSON.parse(response.text.trim());
+        if (!rawResponse) {
+            throw new Error("AI returned an empty response.");
+        }
+
+        let contentStr = rawResponse.trim();
+        // Handle markdown code block wrap if returned
+        if (contentStr.includes("```")) {
+            contentStr = contentStr.replace(/```json/g, "").replace(/```/g, "").trim();
+        }
+
+        const data = JSON.parse(contentStr);
         
         // Normalize/validate data
         data.score = Math.min(100, Math.max(0, parseInt(data.score) || 50));
@@ -84,21 +126,22 @@ async function scoreLead(lead) {
 
         return data;
     } catch (err) {
-        console.error("Gemini Scoring Error:", err);
-        throw new Error("Gemini model unavailable or returned malformed data: " + err.message);
+        console.error("AI Scoring Error:", err);
+        throw new Error("AI model unavailable or returned malformed data: " + err.message);
     }
 }
 
 /**
- * Perform lead auto-segmentation using Google Gemini.
+ * Perform lead auto-segmentation using Google Gemini or OpenAI.
  */
 async function autoSegmentLeads(leads) {
-    const ai = getAIClient();
-    if (!ai) {
-        throw new Error("GEMINI_API_KEY is missing. Please configure it in environment variables.");
+    const aiInstance = getAIClient();
+    if (!aiInstance) {
+        throw new Error("No AI API key found. Please configure OPENAI_API_KEY or GEMINI_API_KEY in environment variables.");
     }
 
-    const model = process.env.AI_MODEL || "gemini-3.6-flash";
+    const { client, type } = aiInstance;
+
     const leadSummary = leads.map(l => ({
         id: l.id,
         name: l.name,
@@ -132,25 +175,47 @@ async function autoSegmentLeads(leads) {
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json"
-            }
-        });
+        let rawResponse = "";
 
-        if (!response.text) {
-            throw new Error("Gemini returned an empty response.");
+        if (type === "openai") {
+            const segmentModel = process.env.LEAD_SEGMENTATION_MODEL || "gpt-5-mini";
+            const response = await client.chat.completions.create({
+                model: segmentModel,
+                messages: [
+                    { role: "system", content: "You are an AI data segmentation expert. Respond strictly in JSON format matching the requested schema." },
+                    { role: "user", content: prompt }
+                ],
+                response_format: { type: "json_object" }
+            });
+            rawResponse = response.choices[0].message.content;
+        } else {
+            const model = process.env.AI_MODEL || "gemini-3.6-flash";
+            const response = await client.models.generateContent({
+                model,
+                contents: prompt,
+                config: {
+                    responseMimeType: "application/json"
+                }
+            });
+            rawResponse = response.text;
         }
 
-        const data = JSON.parse(response.text.trim());
+        if (!rawResponse) {
+            throw new Error("AI returned an empty response.");
+        }
+
+        let contentStr = rawResponse.trim();
+        if (contentStr.includes("```")) {
+            contentStr = contentStr.replace(/```json/g, "").replace(/```/g, "").trim();
+        }
+
+        const data = JSON.parse(contentStr);
         if (!data.segments || !Array.isArray(data.segments)) {
-            throw new Error("Invalid segments format returned from Gemini.");
+            throw new Error("Invalid segments format returned from AI.");
         }
         return data.segments;
     } catch (err) {
-        console.error("Gemini Segmentation Error:", err);
+        console.error("AI Segmentation Error:", err);
         throw new Error("AI auto-segmentation failed: " + err.message);
     }
 }
@@ -160,3 +225,4 @@ module.exports = {
     scoreLead,
     autoSegmentLeads
 };
+
