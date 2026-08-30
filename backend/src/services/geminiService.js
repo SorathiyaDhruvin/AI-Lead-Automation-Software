@@ -74,7 +74,14 @@ async function scoreLead(lead) {
         let rawResponse = "";
 
         if (type === "openai") {
-            const scoringModel = process.env.LEAD_SCORING_MODEL || "gpt-4o-mini";
+            let scoringModel = process.env.LEAD_SCORING_MODEL || "gpt-4o-mini";
+            const openAIBaseURL = process.env.OPENAI_BASE_URL || process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+            if (openAIBaseURL && openAIBaseURL.includes("generativelanguage.googleapis.com")) {
+                if (scoringModel.startsWith("gpt-") || scoringModel.startsWith("gpt4") || scoringModel.startsWith("gpt5")) {
+                    scoringModel = "gemini-3.6-flash";
+                }
+            }
+
             const response = await client.chat.completions.create({
                 model: scoringModel,
                 messages: [
@@ -178,7 +185,14 @@ async function autoSegmentLeads(leads) {
         let rawResponse = "";
 
         if (type === "openai") {
-            const segmentModel = process.env.LEAD_SEGMENTATION_MODEL || "gpt-5-mini";
+            let segmentModel = process.env.LEAD_SEGMENTATION_MODEL || "gpt-5-mini";
+            const openAIBaseURL = process.env.OPENAI_BASE_URL || process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+            if (openAIBaseURL && openAIBaseURL.includes("generativelanguage.googleapis.com")) {
+                if (segmentModel.startsWith("gpt-") || segmentModel.startsWith("gpt4") || segmentModel.startsWith("gpt5")) {
+                    segmentModel = "gemini-3.6-flash";
+                }
+            }
+
             const response = await client.chat.completions.create({
                 model: segmentModel,
                 messages: [
