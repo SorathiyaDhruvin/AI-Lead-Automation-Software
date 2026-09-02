@@ -47,13 +47,40 @@ const emailLogModel = {
         return rows;
     },
 
+    async recordOpen(id) {
+        const { rows } = await pool.query(
+            `UPDATE email_logs 
+             SET opened_at = COALESCE(opened_at, CURRENT_TIMESTAMP),
+                 status = CASE WHEN status = 'failed' THEN status ELSE 'opened' END
+             WHERE id = $1
+             RETURNING *`,
+            [id]
+        );
+        return rows[0] || null;
+    },
+
+    async recordClick(id) {
+        const { rows } = await pool.query(
+            `UPDATE email_logs 
+             SET clicked_at = COALESCE(clicked_at, CURRENT_TIMESTAMP),
+                 opened_at = COALESCE(opened_at, CURRENT_TIMESTAMP),
+                 status = CASE WHEN status = 'failed' THEN status ELSE 'clicked' END
+             WHERE id = $1
+             RETURNING *`,
+            [id]
+        );
+        return rows[0] || null;
+    },
+
     async getStatsByUser(userId) {
         const { rows } = await pool.query(
             `SELECT
                 COUNT(*)::int AS total,
-                COUNT(*) FILTER (WHERE status = 'sent')::int AS sent,
+                COUNT(*) FILTER (WHERE status = 'sent' OR status = 'delivered' OR status = 'opened' OR status = 'clicked')::int AS sent,
                 COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
-                COUNT(*) FILTER (WHERE status = 'delivered')::int AS delivered,
+                COUNT(*) FILTER (WHERE status = 'delivered' OR status = 'opened' OR status = 'clicked')::int AS delivered,
+                COUNT(*) FILTER (WHERE opened_at IS NOT NULL OR status = 'opened' OR status = 'clicked')::int AS opened,
+                COUNT(*) FILTER (WHERE clicked_at IS NOT NULL OR status = 'clicked')::int AS clicked,
                 COUNT(*) FILTER (WHERE status = 'bounced')::int AS bounced
              FROM email_logs
              WHERE user_id = $1`,
@@ -62,5 +89,6 @@ const emailLogModel = {
         return rows[0];
     }
 };
+
 
 module.exports = emailLogModel;

@@ -73,10 +73,80 @@ const retryBulkJob = asyncHandler(async (req, res) => {
     res.json({ success: true, message: result.message });
 });
 
+/**
+ * GET /api/email/track/open/:logId
+ * Serves a 1x1 transparent PNG pixel and records email open event.
+ */
+const trackOpen = asyncHandler(async (req, res) => {
+    const { logId } = req.params;
+    if (logId) {
+        const emailLogModel = require("../models/emailLogModel");
+        const activityModel = require("../models/activityModel");
+        
+        emailLogModel.recordOpen(logId).then(log => {
+            if (log && log.lead_id) {
+                activityModel.create({
+                    leadId: log.lead_id,
+                    userId: log.user_id,
+                    type: "email_opened",
+                    description: `Email opened: "${log.subject}" by ${log.recipient}`,
+                }).catch(() => {});
+            }
+        }).catch(err => console.error("Track open error:", err.message));
+    }
+
+    // 1x1 transparent PNG gif
+    const transparentPixel = Buffer.from(
+        "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+        "base64"
+    );
+    res.writeHead(200, {
+        "Content-Type": "image/gif",
+        "Content-Length": transparentPixel.length,
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    });
+    res.end(transparentPixel);
+});
+
+/**
+ * GET /api/email/track/click/:logId
+ * Records link click event and redirects to target URL.
+ */
+const trackClick = asyncHandler(async (req, res) => {
+    const { logId } = req.params;
+    const targetUrl = req.query.url;
+
+    if (logId) {
+        const emailLogModel = require("../models/emailLogModel");
+        const activityModel = require("../models/activityModel");
+
+        emailLogModel.recordClick(logId).then(log => {
+            if (log && log.lead_id) {
+                activityModel.create({
+                    leadId: log.lead_id,
+                    userId: log.user_id,
+                    type: "email_clicked",
+                    description: `Email link clicked: "${log.subject}" by ${log.recipient}`,
+                }).catch(() => {});
+            }
+        }).catch(err => console.error("Track click error:", err.message));
+    }
+
+    if (targetUrl && typeof targetUrl === "string") {
+        return res.redirect(targetUrl);
+    }
+    res.redirect("/");
+});
+
 module.exports = {
     sendTestEmail,
     getEmailHealth,
     sendBulkEmail,
     getBulkJobProgress,
-    retryBulkJob
+    retryBulkJob,
+    trackOpen,
+    trackClick
 };
+

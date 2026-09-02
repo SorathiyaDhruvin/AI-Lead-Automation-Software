@@ -89,20 +89,35 @@ const getStats = asyncHandler(async (req, res) => {
         // Table may not exist yet
     }
 
-    // ── Email stats (real data from email_logs table) ──
-    let emailStats = { total: 0, sent: 0, failed: 0 };
+    // ── Email stats (real data from email_logs table including open and click rates) ──
+    let emailStats = { total: 0, sent: 0, failed: 0, delivered: 0, opened: 0, clicked: 0, openRate: 0, clickRate: 0, deliveryRate: 0, failureRate: 0 };
     try {
         const { rows: emailRows } = await pool.query(
             `SELECT
                 COUNT(*)::int AS total,
-                COUNT(*) FILTER (WHERE status = 'sent' OR status = 'delivered')::int AS sent,
-                COUNT(*) FILTER (WHERE status = 'failed')::int AS failed
+                COUNT(*) FILTER (WHERE status = 'sent' OR status = 'delivered' OR status = 'opened' OR status = 'clicked')::int AS sent,
+                COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+                COUNT(*) FILTER (WHERE status = 'delivered' OR status = 'opened' OR status = 'clicked')::int AS delivered,
+                COUNT(*) FILTER (WHERE opened_at IS NOT NULL OR status = 'opened' OR status = 'clicked')::int AS opened,
+                COUNT(*) FILTER (WHERE clicked_at IS NOT NULL OR status = 'clicked')::int AS clicked
              FROM email_logs
              WHERE user_id = $1`,
             [userId]
         );
         if (emailRows[0]) {
-            emailStats = emailRows[0];
+            const raw = emailRows[0];
+            emailStats = {
+                total: raw.total,
+                sent: raw.sent,
+                failed: raw.failed,
+                delivered: raw.delivered,
+                opened: raw.opened,
+                clicked: raw.clicked,
+                openRate: raw.sent > 0 ? Math.round((raw.opened / raw.sent) * 100) : 0,
+                clickRate: raw.opened > 0 ? Math.round((raw.clicked / raw.opened) * 100) : 0,
+                deliveryRate: raw.total > 0 ? Math.round((raw.delivered / raw.total) * 100) : 0,
+                failureRate: raw.total > 0 ? Math.round((raw.failed / raw.total) * 100) : 0
+            };
         }
     } catch (e) {
         // Table may not exist yet
@@ -128,8 +143,15 @@ const getStats = asyncHandler(async (req, res) => {
             automationSuccessRate: automationStats.successRate,
             emailsSent: emailStats.sent,
             emailsFailed: emailStats.failed,
+            emailsOpened: emailStats.opened,
+            emailsClicked: emailStats.clicked,
+            openRate: emailStats.openRate,
+            clickRate: emailStats.clickRate,
+            deliveryRate: emailStats.deliveryRate,
+            failureRate: emailStats.failureRate
         }
     });
 });
+
 
 module.exports = { getStats };

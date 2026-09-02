@@ -359,6 +359,18 @@ const sendLeadEmail = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Helper to prevent CSV Injection vulnerabilities by neutralizing formula triggers (=, +, -, @, tab, cr)
+ */
+function sanitizeCsvValue(val) {
+    if (val === null || val === undefined) return "";
+    let str = String(val).trim();
+    if (str.startsWith("=") || str.startsWith("+") || str.startsWith("-") || str.startsWith("@")) {
+        str = "'" + str; // Prefix apostrophe disables formula execution in Excel/Sheets
+    }
+    return `"${str.replace(/"/g, '""')}"`;
+}
+
+/**
  * GET /api/leads/export
  */
 const exportCsv = asyncHandler(async (req, res) => {
@@ -373,15 +385,15 @@ const exportCsv = asyncHandler(async (req, res) => {
 
     const header = "name,email,company,phone,source,status,ai_score,ai_category,created_at";
     const rows = userLeads.map((l) => [
-        `"${(l.name || "").replace(/"/g, '""')}"`,
-        `"${(l.email || "").replace(/"/g, '""')}"`,
-        `"${(l.company || "").replace(/"/g, '""')}"`,
-        `"${(l.phone || "").replace(/"/g, '""')}"`,
-        `"${(l.source || "").replace(/"/g, '""')}"`,
-        `"${(l.status || "").replace(/"/g, '""')}"`,
+        sanitizeCsvValue(l.name),
+        sanitizeCsvValue(l.email),
+        sanitizeCsvValue(l.company),
+        sanitizeCsvValue(l.phone),
+        sanitizeCsvValue(l.source),
+        sanitizeCsvValue(l.status),
         l.ai_score ?? "",
-        `"${(l.ai_category || "").replace(/"/g, '""')}"`,
-        `"${l.created_at ? new Date(l.created_at).toISOString().slice(0, 10) : ""}"`,
+        sanitizeCsvValue(l.ai_category),
+        sanitizeCsvValue(l.created_at ? new Date(l.created_at).toISOString().slice(0, 10) : ""),
     ].join(","));
 
     const csv = [header, ...rows].join("\n");
@@ -424,19 +436,29 @@ const importCsv = asyncHandler(async (req, res) => {
         return result;
     };
 
+    const cleanField = (str) => {
+        if (!str) return "";
+        let cleaned = str.trim();
+        if (cleaned.startsWith("'") && (cleaned.startsWith("'=") || cleaned.startsWith("'+") || cleaned.startsWith("'-") || cleaned.startsWith("'@"))) {
+            cleaned = cleaned.substring(1);
+        }
+        return cleaned;
+    };
+
     const headerRow = parseRow(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, "_"));
     const idx = (name) => headerRow.indexOf(name);
 
     let created = 0;
+    let skippedDuplicates = 0;
     const errors = [];
 
     for (let i = 1; i < lines.length; i++) {
         const row = parseRow(lines[i]);
-        const name = row[idx("name")] || "";
-        const email = row[idx("email")] || "";
-        const company = row[idx("company")] || undefined;
-        const phone = row[idx("phone")] || undefined;
-        const source = row[idx("source")] || "csv_import";
+        const name = cleanField(row[idx("name")]);
+        const email = cleanField(row[idx("email")]).toLowerCase();
+        const company = cleanField(row[idx("company")]) || undefined;
+        const phone = cleanField(row[idx("phone")]) || undefined;
+        const source = cleanField(row[idx("source")]) || "csv_import";
 
         if (!name || !email) {
             errors.push(`Row ${i + 1}: missing required name or email`);
@@ -444,6 +466,13 @@ const importCsv = asyncHandler(async (req, res) => {
         }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             errors.push(`Row ${i + 1}: invalid email "${email}"`);
+            continue;
+        }
+
+        // Duplicate email prevention check
+        const existingLead = await leadModel.getByEmailAndUser(req.userId, email);
+        if (existingLead) {
+            skippedDuplicates++;
             continue;
         }
 
@@ -463,6 +492,11 @@ const importCsv = asyncHandler(async (req, res) => {
                 type: "lead_created",
                 description: `Lead imported from CSV`,
             });
+            
+            // Trigger autonomous workflow for lead creation
+            automationEngine.triggerEvent("lead_created", lead, req.userId)
+                .catch((err) => console.error("[CSV Import] Automation trigger error:", err.message));
+
             created++;
         } catch (err) {
             errors.push(`Row ${i + 1}: failed to create lead for "${email}". Error: ${err.message}`);
@@ -473,7 +507,7 @@ const importCsv = asyncHandler(async (req, res) => {
         notificationModel.create({
             userId: req.userId,
             type: "lead_created",
-            message: `CSV import: ${created} lead${created !== 1 ? "s" : ""} imported successfully`
+            message: `CSV import: ${created} lead${created !== 1 ? "s" : ""} imported successfully${skippedDuplicates > 0 ? ` (${skippedDuplicates} duplicates skipped)` : ""}`
         }).catch(() => { });
     }
 
@@ -481,9 +515,88 @@ const importCsv = asyncHandler(async (req, res) => {
         success: true,
         data: {
             created,
+            skippedDuplicates,
             failed: errors.length,
             errors: errors.slice(0, 20)
         }
+    });
+});
+
+/**
+ * POST /api/leads/public-capture
+ * Public endpoint for website lead forms.
+ */
+const createPublicLead = asyncHandler(async (req, res) => {
+    const { userId, name, email, company, phone, jobTitle, message } = req.body;
+
+    if (!userId || typeof userId !== "string") {
+        return res.status(400).json({ success: false, message: "Valid userId is required" });
+    }
+
+    if (!name || !email || typeof name !== "string" || typeof email !== "string") {
+        return res.status(400).json({ success: false, message: "Name and email are required" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+        return res.status(400).json({ success: false, message: "Invalid email format" });
+    }
+
+    // Check if user exists in database
+    const userModel = require("../models/userModel");
+    const targetUser = await userModel.getById(userId);
+    if (!targetUser) {
+        return res.status(404).json({ success: false, message: "Target account not found" });
+    }
+
+    // Duplicate check
+    const existing = await leadModel.getByEmailAndUser(userId, normalizedEmail);
+    if (existing) {
+        return res.json({
+            success: true,
+            message: "Thank you! Your submission has been received.",
+            data: { leadId: existing.id }
+        });
+    }
+
+    const leadNotes = [
+        jobTitle ? `Job Title: ${jobTitle}` : null,
+        message ? `Message: ${message}` : null
+    ].filter(Boolean).join("\n");
+
+    const lead = await leadModel.create({
+        userId,
+        name: name.trim(),
+        email: normalizedEmail,
+        company: company ? company.trim() : null,
+        phone: phone ? phone.trim() : null,
+        source: "website_form",
+        status: "new",
+        notes: leadNotes || "Submitted via website form"
+    });
+
+    // Auto-log activity & notification
+    await activityModel.create({
+        leadId: lead.id,
+        userId,
+        type: "lead_created",
+        description: `New lead submitted via Website Form (${lead.name})`
+    }).catch(() => {});
+
+    await notificationModel.create({
+        userId,
+        type: "lead_created",
+        message: `New Website Lead: ${lead.name} (${lead.email})`
+    }).catch(() => {});
+
+    // Trigger automation workflows for lead_created event
+    automationEngine.triggerEvent("lead_created", lead, userId)
+        .catch((err) => console.error("Public Form Automation trigger error:", err.message));
+
+    res.status(201).json({
+        success: true,
+        message: "Thank you! Your information has been submitted successfully.",
+        data: { leadId: lead.id }
     });
 });
 
@@ -499,5 +612,7 @@ module.exports = {
     getLeadActivities,
     sendLeadEmail,
     exportCsv,
-    importCsv
+    importCsv,
+    createPublicLead
 };
+

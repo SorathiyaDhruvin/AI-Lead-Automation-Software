@@ -1,129 +1,123 @@
-# AI Lead Automation Backend
+# LeadFlow AI — Production AI Lead Automation Platform
 
-Production-ready REST API for the AI Lead Automation platform. Built with Express.js, PostgreSQL, and deployed on Vercel.
+**LeadFlow AI** is a full-stack, autonomous sales automation platform powered by Google Gemini AI, PostgreSQL, Express.js, and React.
 
-## Project Structure
+---
 
-```
-ai-lead-automation-backend/
-├── api/
-│   └── index.js              # Vercel serverless entry point
-├── src/
-│   ├── config/
-│   │   └── db.js             # PostgreSQL connection pool
-│   ├── middleware/
-│   │   ├── auth.js           # JWT auth & admin middleware
-│   │   ├── cors.js           # CORS whitelist config
-│   │   └── errorHandler.js   # Global error handler + asyncHandler
-│   ├── models/
-│   │   ├── userModel.js      # User SQL queries
-│   │   ├── leadModel.js      # Lead SQL queries
-│   │   ├── activityModel.js  # Activity SQL queries
-│   │   └── aiSuggestionModel.js # AI scoring SQL queries
-│   ├── controllers/
-│   │   ├── userController.js
-│   │   ├── leadController.js
-│   │   ├── activityController.js
-│   │   ├── aiSuggestionController.js
-│   │   └── healthController.js
-│   ├── routes/
-│   │   ├── userRoutes.js
-│   │   ├── leadRoutes.js
-│   │   ├── activityRoutes.js
-│   │   ├── aiSuggestionRoutes.js
-│   │   └── healthRoutes.js
-│   └── app.js                # Express app setup
-├── server.js                 # Local dev server
-├── vercel.json               # Vercel deployment config
-├── .env                      # Environment variables (local only)
-├── .gitignore
-└── package.json
+## 🏗 System Architecture & Workflow
+
+```mermaid
+graph TD
+    User([User / Lead]) -->|Google OAuth / Credentials| Auth[Supabase & JWT Auth]
+    User -->|Submit Web Form| WebForm[Public Capture API /api/public-leads/public-capture]
+    
+    WebForm --> Backend[Express Backend Engine]
+    Auth --> Backend
+    
+    Backend --> DB[(PostgreSQL Database)]
+    Backend --> AI[Google Gemini AI Service]
+    Backend --> AutoEngine[Autonomous Automation Engine]
+    Backend --> Email[Brevo SMTP Email Service]
+    
+    AI -->|Score 0-100 & Hot/Warm/Cold| DB
+    AI -->|Personalized Copy| Email
+    
+    AutoEngine -->|Triggers & Idempotency| ExecLog[Execution Logs]
+    AutoEngine -->|Scheduled Delays| Scheduler[60s Background Processor]
+    
+    Email -->|1x1 Pixel & Link Redirects| Track[Email Tracking Engine]
+    Track -->|Opened / Clicked Events| ActivityTimeline[Activity Timeline]
 ```
 
-## Getting Started
+---
 
-### Prerequisites
+## ⚡ Core Features
 
-- Node.js 18+
-- PostgreSQL database
+### 1. Unified Authentication & Sync
+- **Google OAuth & Email/Password Auth**: Powered by Supabase Auth with session persistence and background user sync into PostgreSQL `users`.
+- **Role-Based Access Control**: Server-side enforced admin authorization on `/api/admin/*`.
 
-### Installation
+### 2. Complete Lead Management
+- **CRUD Operations**: Create, View, Edit, Delete, Search, Filter, Sort, and Paginate.
+- **CSV Import & Export**: Safe CSV parsing with duplicate email detection (`getByEmailAndUser`) and formula stripping protection against CSV injection (`sanitizeCsvValue`).
+- **Database Indexes**: Optimized indexes on `user_id`, `email`, `status`, `ai_score`, `created_at`.
+
+### 3. AI Lead Intelligence
+- **AI Lead Scoring**: 0–100 score, Hot/Warm/Cold category rating, key strengths, weaknesses, and recommended action.
+- **AI Sales Email Generator**: Custom personalized sales outreach copy generation tailored to lead context, target objective, and tone of voice.
+- **AI Follow-Up System**: Multi-step automated follow-up copy generator with optimal delay recommendation.
+- **AI Reply Assistant**: Natural language intent detection (`Interested`, `Not Interested`, `Needs Info`, `Pricing`, `Meeting`), sentiment analysis, and instant draft response generator.
+
+### 4. Autonomous Automation Engine
+- **Event-Driven Execution**: Listens for triggers (`lead_created`, `lead_scored`, `lead_status_changed`), evaluates server-side conditions (`score >= X`, `status_equals`), and executes actions automatically without manual "Run Now" clicks.
+- **Idempotency Protection**: Hour-window database execution locking via `executionModel.checkIdempotency(key)` prevents duplicate actions.
+- **Scheduled Delay Processor**: Background processor (`scheduledProcessor.js`) runs every 60s processing delayed action queues with max retry safeguards.
+
+### 5. Email System & Analytics Tracking
+- **Brevo SMTP & Nodemailer Integration**: Reliable HTML email delivery.
+- **Open & Click Tracking**:
+  - Open tracking via 1x1 transparent PNG pixel (`/api/email/track/open/:logId`).
+  - Click tracking via redirect link wrapping (`/api/email/track/click/:logId?url=...`).
+- **Dashboard Analytics**: Computes real-time Open Rate, Click Rate, Delivery Rate, and Failure Rate.
+
+### 6. Public Lead Form & Embed Builder
+- **Public API**: `POST /api/public-leads/public-capture` (rate-limited, anti-spam protected).
+- **Embed Builder UI**: Generate copyable HTML form embed snippet and test submissions live inside the app.
+
+---
+
+## 🛠 Local Setup & Running Tests
+
+### 1. Install Dependencies
 
 ```bash
+# Backend
+cd backend
+npm install
+
+# Frontend
+cd ../frontend
 npm install
 ```
 
-### Configure Environment
+### 2. Configure Environment Variables
 
-Edit `.env` with your database credentials:
+Create `.env` inside `backend/`:
 
 ```env
-PORT=5000
+PORT=5001
 NODE_ENV=development
-JWT_SECRET=your-secret-key
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=your_password
-DB_NAME=demodb
+JWT_SECRET=your_jwt_secret_key
+DATABASE_URL=postgresql://postgres:password@host:5432/postgres
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SECRET_KEY=your_supabase_service_key
+GEMINI_API_KEY=your_gemini_api_key
+AI_MODEL=gemini-3.7-flash
+BREVO_SMTP_HOST=smtp-relay.brevo.com
+BREVO_SMTP_PORT=587
+BREVO_SMTP_USER=your_brevo_user
+BREVO_SMTP_PASSWORD=your_brevo_password
+BREVO_FROM_EMAIL=your_email@domain.com
+BREVO_FROM_NAME=LeadFlow AI
 ```
 
-### Run Locally
+### 3. Run Automated Tests
 
 ```bash
+cd backend
+npm test
+```
+
+### 4. Run Servers Locally
+
+```bash
+# Terminal 1 — Backend API Server (Port 5001)
+cd backend
+npm run dev
+
+# Terminal 2 — Frontend Application (Port 5000)
+cd frontend
 npm run dev
 ```
 
-Server starts at `http://localhost:5000`
-
-## API Endpoints
-
-### Health
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/health` | No | API health check |
-
-### Users
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/users/register` | No | Register new user |
-| POST | `/api/users/login` | No | Login |
-| GET | `/api/users/profile` | Yes | Get current user |
-| GET | `/api/users` | Admin | List all users |
-
-### Leads
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/leads` | Yes | List user's leads |
-| GET | `/api/leads/:id` | Yes | Get single lead |
-| POST | `/api/leads` | Yes | Create lead |
-| PUT | `/api/leads/:id` | Yes | Update lead |
-| DELETE | `/api/leads/:id` | Yes | Delete lead |
-
-### Activities
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/activities` | Yes | All user activities |
-| GET | `/api/activities/lead/:leadId` | Yes | Lead activities |
-
-### AI Suggestions
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/ai-suggestions` | Yes | Get scored leads |
-| POST | `/api/ai-suggestions/:leadId` | Yes | Generate AI score |
-
-## Deploying to Vercel
-
-1. Push this repo to GitHub
-2. Import the repo on [vercel.com](https://vercel.com)
-3. Add environment variables in Vercel Dashboard:
-   - `DATABASE_URL` — your production PostgreSQL connection string
-   - `JWT_SECRET` — a strong secret key
-   - `NODE_ENV` — set to `production`
-4. Deploy!
-
-## CORS
-
-Allowed origins:
-- `https://ai-lead-automation-software.vercel.app` (production)
-- `localhost:3000`, `localhost:5173` (development only)
+Visit the application at: `http://localhost:5000`

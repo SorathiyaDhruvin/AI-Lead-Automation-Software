@@ -62,7 +62,10 @@ import { leadsService } from "@/services/leads";
 import { LeadDialog } from "@/components/lead-dialog";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
 import { LeadDetailsSheet } from "@/components/lead-details-sheet";
+import { AIEmailDialog } from "@/components/ai-email-dialog";
+import { AIReplyDialog } from "@/components/ai-reply-dialog";
 import { formatDistanceToNow } from "date-fns";
+
 
 const statusColors: Record<string, string> = {
   new: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
@@ -89,7 +92,14 @@ export default function LeadManagementPage() {
   const [emailSubject, setEmailSubject] = useState("Following up — LeadFlow");
   const [emailMessage, setEmailMessage] = useState("");
 
+  // AI Dialogs State
+  const [isAiEmailOpen, setIsAiEmailOpen] = useState(false);
+  const [aiEmailMode, setAiEmailMode] = useState<"initial" | "followup">("initial");
+  const [isAiReplyOpen, setIsAiReplyOpen] = useState(false);
+  const [aiTargetLead, setAiTargetLead] = useState<Lead | null>(null);
+
   const [urlLeadId, setUrlLeadId] = useState<string | null>(null);
+
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -386,6 +396,15 @@ export default function LeadManagementPage() {
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); scoreMutation.mutate(lead.id); }}>
                             <Sparkles className="h-4 w-4 mr-2" /> Score AI
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setAiTargetLead(lead); setAiEmailMode("initial"); setIsAiEmailOpen(true); }}>
+                            <Sparkles className="h-4 w-4 mr-2 text-blue-600" /> AI Sales Email
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setAiTargetLead(lead); setAiEmailMode("followup"); setIsAiEmailOpen(true); }}>
+                            <Sparkles className="h-4 w-4 mr-2 text-yellow-600" /> AI Follow-Up
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setAiTargetLead(lead); setIsAiReplyOpen(true); }}>
+                            <Sparkles className="h-4 w-4 mr-2 text-purple-600" /> AI Reply Assistant
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-destructive"
@@ -393,6 +412,7 @@ export default function LeadManagementPage() {
                           >
                             <Trash2 className="h-4 w-4 mr-2" /> Delete
                           </DropdownMenuItem>
+
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -565,6 +585,22 @@ export default function LeadManagementPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* AI Sales Email & Follow-Up Dialog */}
+      <AIEmailDialog
+        open={isAiEmailOpen}
+        onOpenChange={setIsAiEmailOpen}
+        lead={aiTargetLead}
+        mode={aiEmailMode}
+      />
+
+      {/* AI Reply Assistant Dialog */}
+      <AIReplyDialog
+        open={isAiReplyOpen}
+        onOpenChange={setIsAiReplyOpen}
+        lead={aiTargetLead}
+      />
     </div>
   );
 }
+

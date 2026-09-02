@@ -7,6 +7,10 @@ const aiSuggestionController = require("../controllers/aiSuggestionController");
 router.use(authMiddleware);
 
 router.get("/", aiSuggestionController.getSuggestions);
+router.post("/generate-email", aiSuggestionController.generateEmail);
+router.post("/generate-followup", aiSuggestionController.generateFollowUp);
+router.post("/analyze-reply", aiSuggestionController.analyzeReply);
 router.post("/:leadId", aiSuggestionController.generateSuggestion);
 
 module.exports = router;
+

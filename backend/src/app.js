@@ -25,6 +25,8 @@ const emailTemplateRoutes = require("./routes/emailTemplateRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const emailRoutes = require("./routes/emailRoutes");
 
+const publicLeadRoutes = require("./routes/publicLeadRoutes");
+
 const app = express();
 
 // ── Global Middleware ──
@@ -34,7 +36,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // ── Routes ──
 app.use("/api/health", healthRoutes);
+app.use("/api/public-leads", publicLeadRoutes);
 app.use("/api/users", userRoutes);
+
 app.use("/api/leads", leadRoutes);
 app.use("/api/activities", activityRoutes);
 app.use("/api/ai-suggestions", aiSuggestionRoutes);

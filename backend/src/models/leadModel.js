@@ -59,6 +59,19 @@ const leadModel = {
     },
 
     /**
+     * Find a lead by email for a specific user (prevents duplicate leads).
+     */
+    async getByEmailAndUser(userId, email) {
+        if (!email) return null;
+        const { rows } = await pool.query(
+            `SELECT * FROM leads WHERE user_id = $1 AND LOWER(email) = LOWER($2) LIMIT 1`,
+            [userId, email.trim()]
+        );
+        return rows[0] || null;
+    },
+
+
+    /**
      * Create a new lead.
      */
     async create({ userId, name, email, company, phone, source = "manual", status = "new", notes }) {

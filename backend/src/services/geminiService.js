@@ -234,9 +234,229 @@ async function autoSegmentLeads(leads) {
     }
 }
 
+/**
+ * Generate a personalized sales email using AI.
+ */
+async function generateEmail({ lead, objective = "Initial outreach & product pitch", tone = "Professional & Persuasive", previousInteractions = "" }) {
+    const aiInstance = getAIClient();
+    if (!aiInstance) {
+        throw new Error("No AI API key found. Please configure OPENAI_API_KEY or GEMINI_API_KEY.");
+    }
+    const { client, type } = aiInstance;
+
+    const prompt = `
+    You are an elite B2B sales copywriter. Write a highly personalized sales email tailored specifically to this lead.
+
+    Lead Context:
+    - Name: ${lead.name}
+    - Company: ${lead.company || "their company"}
+    - Email: ${lead.email}
+    - Source: ${lead.source || "manual"}
+    - Status: ${lead.status || "new"}
+    - Job Title: ${lead.occupation || "Decision Maker"}
+    - Department: ${lead.department || "Business Operations"}
+    - Notes / Context: ${lead.notes || "None"}
+    - Previous Interactions: ${previousInteractions || "None"}
+
+    Parameters:
+    - Desired Objective: ${objective}
+    - Tone: ${tone}
+
+    Respond strictly in JSON format matching this schema:
+    {
+      "subject": "<compelling non-spammy email subject line>",
+      "body": "<personalized HTML formatted email body with line breaks and clear value proposition>",
+      "cta": "<clear single call-to-action button or question>"
+    }
+    `;
+
+    try {
+        let rawResponse = "";
+        if (type === "openai") {
+            let model = process.env.LEAD_SCORING_MODEL || "gpt-4o-mini";
+            const openAIBaseURL = process.env.OPENAI_BASE_URL || process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+            if (openAIBaseURL && openAIBaseURL.includes("generativelanguage.googleapis.com")) {
+                model = "gemini-3.6-flash";
+            }
+            const res = await client.chat.completions.create({
+                model,
+                messages: [
+                    { role: "system", content: "You are an elite B2B sales copywriter. Respond strictly in valid JSON." },
+                    { role: "user", content: prompt }
+                ],
+                response_format: { type: "json_object" }
+            });
+            rawResponse = res.choices[0].message.content;
+        } else {
+            const model = process.env.AI_MODEL || "gemini-3.6-flash";
+            const res = await client.models.generateContent({
+                model,
+                contents: prompt,
+                config: { responseMimeType: "application/json" }
+            });
+            rawResponse = res.text;
+        }
+
+        let contentStr = rawResponse.trim();
+        if (contentStr.includes("```")) {
+            contentStr = contentStr.replace(/```json/g, "").replace(/```/g, "").trim();
+        }
+        return JSON.parse(contentStr);
+    } catch (err) {
+        console.error("AI Email Generation Error:", err);
+        throw new Error("AI email generation failed: " + err.message);
+    }
+}
+
+/**
+ * Generate a smart follow-up email.
+ */
+async function generateFollowUp({ lead, step = 1, previousEmails = "", objective = "Re-engage lead" }) {
+    const aiInstance = getAIClient();
+    if (!aiInstance) {
+        throw new Error("No AI API key found. Please configure OPENAI_API_KEY or GEMINI_API_KEY.");
+    }
+    const { client, type } = aiInstance;
+
+    const prompt = `
+    You are an expert sales follow-up assistant. Write a polite, non-intrusive, value-adding follow-up email for sequence step #${step}.
+
+    Lead Info:
+    - Name: ${lead.name}
+    - Company: ${lead.company || "their company"}
+    - Status: ${lead.status || "contacted"}
+    - AI Category: ${lead.ai_category || "Warm"}
+    - Previous Sent Emails Summary: ${previousEmails || "Initial outreach sent previously"}
+    - Sequence Step: #${step}
+    - Goal: ${objective}
+
+    Respond strictly in JSON format matching this schema:
+    {
+      "subject": "<follow up subject line>",
+      "body": "<personalized follow up body HTML>",
+      "delayDays": <recommended days to wait before sending next follow up>
+    }
+    `;
+
+    try {
+        let rawResponse = "";
+        if (type === "openai") {
+            let model = process.env.LEAD_SCORING_MODEL || "gpt-4o-mini";
+            const openAIBaseURL = process.env.OPENAI_BASE_URL || process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+            if (openAIBaseURL && openAIBaseURL.includes("generativelanguage.googleapis.com")) {
+                model = "gemini-3.6-flash";
+            }
+            const res = await client.chat.completions.create({
+                model,
+                messages: [
+                    { role: "system", content: "You are an expert sales follow-up assistant. Respond strictly in valid JSON." },
+                    { role: "user", content: prompt }
+                ],
+                response_format: { type: "json_object" }
+            });
+            rawResponse = res.choices[0].message.content;
+        } else {
+            const model = process.env.AI_MODEL || "gemini-3.6-flash";
+            const res = await client.models.generateContent({
+                model,
+                contents: prompt,
+                config: { responseMimeType: "application/json" }
+            });
+            rawResponse = res.text;
+        }
+
+        let contentStr = rawResponse.trim();
+        if (contentStr.includes("```")) {
+            contentStr = contentStr.replace(/```json/g, "").replace(/```/g, "").trim();
+        }
+        return JSON.parse(contentStr);
+    } catch (err) {
+        console.error("AI Follow-up Generation Error:", err);
+        throw new Error("AI follow-up generation failed: " + err.message);
+    }
+}
+
+/**
+ * Analyze an incoming lead reply and suggest a response.
+ */
+async function analyzeReply({ lead, replyText }) {
+    const aiInstance = getAIClient();
+    if (!aiInstance) {
+        throw new Error("No AI API key found. Please configure OPENAI_API_KEY or GEMINI_API_KEY.");
+    }
+    const { client, type } = aiInstance;
+
+    const prompt = `
+    You are an AI reply assistant analyzing an incoming email response from a sales lead.
+
+    Lead Context:
+    - Name: ${lead.name}
+    - Company: ${lead.company || "their company"}
+    - Email: ${lead.email}
+
+    Incoming Lead Reply Text:
+    "${replyText}"
+
+    Tasks:
+    1. Identify intent (Interested | Not Interested | Needs Info | Pricing Question | Wants Meeting | Objection | Wrong Person | Unsubscribe).
+    2. Identify sentiment (Positive | Neutral | Negative).
+    3. Provide confidence score (0 to 100).
+    4. Draft a professional, highly relevant suggested response.
+
+    Respond strictly in JSON format matching this schema:
+    {
+      "intent": "<Detected Intent>",
+      "sentiment": "Positive" | "Neutral" | "Negative",
+      "confidence": <integer 0-100>,
+      "suggestedResponse": "<draft response email text>"
+    }
+    `;
+
+    try {
+        let rawResponse = "";
+        if (type === "openai") {
+            let model = process.env.LEAD_SCORING_MODEL || "gpt-4o-mini";
+            const openAIBaseURL = process.env.OPENAI_BASE_URL || process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+            if (openAIBaseURL && openAIBaseURL.includes("generativelanguage.googleapis.com")) {
+                model = "gemini-3.6-flash";
+            }
+            const res = await client.chat.completions.create({
+                model,
+                messages: [
+                    { role: "system", content: "You are an AI sales reply assistant. Respond strictly in valid JSON." },
+                    { role: "user", content: prompt }
+                ],
+                response_format: { type: "json_object" }
+            });
+            rawResponse = res.choices[0].message.content;
+        } else {
+            const model = process.env.AI_MODEL || "gemini-3.6-flash";
+            const res = await client.models.generateContent({
+                model,
+                contents: prompt,
+                config: { responseMimeType: "application/json" }
+            });
+            rawResponse = res.text;
+        }
+
+        let contentStr = rawResponse.trim();
+        if (contentStr.includes("```")) {
+            contentStr = contentStr.replace(/```json/g, "").replace(/```/g, "").trim();
+        }
+        return JSON.parse(contentStr);
+    } catch (err) {
+        console.error("AI Reply Analysis Error:", err);
+        throw new Error("AI reply analysis failed: " + err.message);
+    }
+}
+
 module.exports = {
     getAIClient,
     scoreLead,
-    autoSegmentLeads
+    autoSegmentLeads,
+    generateEmail,
+    generateFollowUp,
+    analyzeReply
 };
+
 

@@ -75,4 +75,69 @@ const generateSuggestion = asyncHandler(async (req, res) => {
     }
 });
 
-module.exports = { getSuggestions, generateSuggestion };
+/**
+ * POST /api/ai-suggestions/generate-email
+ */
+const generateEmail = asyncHandler(async (req, res) => {
+    const { leadId, objective, tone, previousInteractions } = req.body;
+    const lead = await aiSuggestionModel.getLeadForScoring(leadId);
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+    if (lead.user_id !== req.userId) return res.status(403).json({ success: false, message: "Access denied" });
+
+    const emailData = await geminiService.generateEmail({
+        lead,
+        objective,
+        tone,
+        previousInteractions
+    });
+
+    res.json({ success: true, data: emailData });
+});
+
+/**
+ * POST /api/ai-suggestions/generate-followup
+ */
+const generateFollowUp = asyncHandler(async (req, res) => {
+    const { leadId, step, previousEmails, objective } = req.body;
+    const lead = await aiSuggestionModel.getLeadForScoring(leadId);
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+    if (lead.user_id !== req.userId) return res.status(403).json({ success: false, message: "Access denied" });
+
+    const followUpData = await geminiService.generateFollowUp({
+        lead,
+        step,
+        previousEmails,
+        objective
+    });
+
+    res.json({ success: true, data: followUpData });
+});
+
+/**
+ * POST /api/ai-suggestions/analyze-reply
+ */
+const analyzeReply = asyncHandler(async (req, res) => {
+    const { leadId, replyText } = req.body;
+    if (!replyText || typeof replyText !== "string") {
+        return res.status(400).json({ success: false, message: "Reply text is required" });
+    }
+    const lead = await aiSuggestionModel.getLeadForScoring(leadId);
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+    if (lead.user_id !== req.userId) return res.status(403).json({ success: false, message: "Access denied" });
+
+    const analysis = await geminiService.analyzeReply({
+        lead,
+        replyText
+    });
+
+    res.json({ success: true, data: analysis });
+});
+
+module.exports = {
+    getSuggestions,
+    generateSuggestion,
+    generateEmail,
+    generateFollowUp,
+    analyzeReply
+};
+
